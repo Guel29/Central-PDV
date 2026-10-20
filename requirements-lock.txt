@@ -1,0 +1,26 @@
+# Dependências transitivas fixadas; Python 3.12, Linux/Windows x64.
+aiohappyeyeballs==2.7.1
+aiohttp==3.13.3
+aiosignal==1.4.0
+altgraph==0.17.5
+attrs==26.1.0
+cffi==2.1.1
+cryptography==46.0.5
+frozenlist==1.8.0
+idna==3.20
+iniconfig==2.3.1
+multidict==6.9.1
+packaging==26.3
+Pillow==12.1.1
+pluggy==1.7.0
+propcache==0.5.4
+pycparser==3.11
+Pygments==2.21.0
+pyinstaller==6.19.0
+pyinstaller-hooks-contrib==2026.8
+pytest==9.0.2
+setuptools==84.2.0
+typing_extensions==4.16.0
+yarl==1.25.1
+pefile==2023.2.7; sys_platform == 'win32'
+pywin32-ctypes==0.2.3; sys_platform == 'win32'

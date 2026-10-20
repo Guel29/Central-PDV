@@ -1,0 +1,4 @@
+-c requirements-lock.txt
+-r requirements.txt
+pytest==9.0.2
+pyinstaller==6.19.0

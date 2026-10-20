@@ -1,0 +1,4 @@
+-c requirements-lock.txt
+aiohttp==3.13.3
+cryptography==46.0.5
+Pillow==12.1.1

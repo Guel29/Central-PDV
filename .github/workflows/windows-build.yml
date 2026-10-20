@@ -1,0 +1,33 @@
+name: Windows installers
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  installers:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+          }
+      - name: Build independent installers
+        shell: pwsh
+        run: ./packaging/build.ps1
+      - name: Run transport and storage tests on Windows
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe -m pytest -q
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartPDV-Windows-Installers
+          path: dist/installers/*-Setup.exe
+          if-no-files-found: error
