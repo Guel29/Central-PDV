@@ -1,0 +1,97 @@
+name: Windows 7 Agent
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'legacy-agent/**'
+      - 'tests/legacy_agent_probe.py'
+      - '.github/workflows/windows7-agent.yml'
+permissions:
+  contents: read
+jobs:
+  legacy:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Windows 7 compatible x86 Agent
+        shell: pwsh
+        run: |
+          msbuild legacy-agent/SmartPDV-Agent-Win7.csproj /p:Configuration=Release /nologo /verbosity:minimal 2>&1 | Tee-Object build.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content build.log | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$_" }
+            throw 'Compilation failed'
+          }
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Test real TLS and WebSocket interoperability
+        shell: pwsh
+        env:
+          PYTHONPATH: .
+        run: |
+          python tests/legacy_agent_probe.py legacy-agent/bin/Release/SmartPDV-Agent-Win7.exe 2>&1 | Tee-Object probe.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content probe.log | Select-Object -Last 45 | ForEach-Object { Write-Host "::error::$_" }
+            throw 'Interoperability failed'
+          }
+      - name: Install verified compiler compatible with Windows 7
+        shell: pwsh
+        run: |
+          $file = Join-Path $env:RUNNER_TEMP 'innosetup-6.2.2.exe'
+          Invoke-WebRequest https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe -OutFile $file
+          $signature = Get-AuthenticodeSignature $file
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Jordan Russell') { throw 'Invalid compiler signature' }
+          $compiler = Join-Path $env:RUNNER_TEMP 'inno-legacy'
+          $p = Start-Process $file -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$compiler" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Compiler setup failed' }
+          & "$compiler/ISCC.exe" legacy-agent/setup.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
+      - name: Test installed legacy Agent
+        shell: pwsh
+        env:
+          PYTHONPATH: .
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'installed-legacy'
+          $p = Start-Process legacy-agent/dist/SmartPDV-Agent-Win7-Setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',"/DIR=$install" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Installer failed' }
+          python tests/legacy_agent_probe.py "$install/SmartPDV-Agent-Win7.exe" 2>&1 | Tee-Object installed-probe.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content installed-probe.log | Select-Object -Last 45 | ForEach-Object { Write-Host "::error::$_" }
+            throw 'Installed Agent failed'
+          }
+          $p = Start-Process "$install/SmartPDV-Agent-Win7.exe" -ArgumentList '--background','--data',"$env:RUNNER_TEMP/empty-agent" -PassThru
+          if (!$p.WaitForExit(15000)) { $p.Kill(); throw 'Unexpected background wizard' }
+          if ($p.ExitCode -ne 0) { throw 'Background startup failed' }
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem legacy-agent/dist/*.exe | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content -Encoding utf8 legacy-agent/dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartPDV-Agent-Win7
+          path: legacy-agent/dist/*
+          if-no-files-found: error
+      - name: Publish Windows 7 test installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = Join-Path $env:RUNNER_TEMP 'win7-notes.md'
+          @'
+          Agent separado para Windows 7 SP1 (32 ou 64 bits), exige .NET Framework 4.8 instalado.
+          Captura de tela, F11 e controle mouse/teclado nativos. Inicializacao discreta apos login do Windows.
+          Pareamento com a Central pela LAN, TLS 1.2 e credencial protegida por DPAPI. Sem banco, login de aplicativo ou nuvem.
+          Testes automatizados do executavel e instalador feitos em Windows moderno contra a Central real.
+          Nao validado em maquina fisica Windows 7: testar no caixa antes de usar em producao.
+          Instalador para testes sem assinatura Authenticode. Verifique SHA256SUMS.txt.
+          '@ | Set-Content -Encoding utf8 $notes
+          gh release create "windows7-agent-$env:GITHUB_RUN_NUMBER-$env:GITHUB_RUN_ATTEMPT" legacy-agent/dist/SmartPDV-Agent-Win7-Setup.exe legacy-agent/dist/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "Agent Windows 7 - teste $env:GITHUB_RUN_NUMBER" --notes-file $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Publication failed' }

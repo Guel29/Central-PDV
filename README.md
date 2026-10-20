@@ -50,3 +50,7 @@ python3 -m venv /workspace/smartpdv-venv
 Build local dos instaladores: Windows x64, Python 3.12 e Inno Setup 6; execute `powershell -ExecutionPolicy Bypass -File packaging\build.ps1`. O workflow Windows installers executa build, testes nativos, instalação silenciosa de ambos os pacotes, conferência do subsistema GUI sem console e uma requisição HTTPS funcional ao executável Central instalado antes de publicar.
 
 Antes de produção, valide em dois PCs Windows reais: instalação, certificado, ACL/DPAPI, F11 sem foco, áudio com duas pendências, captura/DPI, mouse/teclado/layout, tela cheia, alternância, desconexão/reconexão, reinício da Central, falta de internet mantendo LAN, inicialização após login e carga com o número real de caixas. Os testes automatizados não substituem esse teste físico.
+
+### Agent para Windows 7
+
+Existe um Agent separado em [legacy-agent](legacy-agent/README.md), destinado a **Windows 7 SP1, 32/64 bits, com .NET Framework 4.8**. A workflow `Windows 7 Agent` gera `SmartPDV-Agent-Win7-Setup.exe`. A Central permanece no Windows 10/11. Leia os requisitos e limites de validacao antes do teste no caixa.
