@@ -169,6 +169,9 @@ namespace SmartPDV.Legacy
                     !fields.ContainsKey("Upgrade") || !string.Equals(fields["Upgrade"], "websocket", StringComparison.OrdinalIgnoreCase) ||
                     !fields.ContainsKey("Connection") || !fields["Connection"].Split(',').Any(v => v.Trim().Equals("Upgrade", StringComparison.OrdinalIgnoreCase)))
                     throw new AuthenticationException("Upgrade WebSocket invalido.");
+                // A Central pode nao enviar mensagens enquanto recebe miniaturas regularmente.
+                // Escritas limitadas e o socket fechado detectam quedas, sem reconectar por inatividade.
+                stream.ReadTimeout = Timeout.Infinite;
             }
             catch { tcp.Close(); throw; }
         }
