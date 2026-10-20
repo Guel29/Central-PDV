@@ -5,6 +5,7 @@ from pathlib import Path
 import ssl
 import sys
 import threading
+import traceback
 import time
 import urllib.request
 import webbrowser
@@ -40,6 +41,7 @@ def launch(role):
     parser.add_argument('--no-browser',action='store_true')
     options, remaining = parser.parse_known_args(sys.argv[1:])
     background = options.background
+    directory = None
     try:
         if background and (role != 'agent' or remaining not in ([], ['run'])):
             raise ValueError('--background é exclusivo da execução do Agent já configurado')
@@ -57,8 +59,16 @@ def launch(role):
         sys.argv = [sys.argv[0],role,*arguments]
         cli.main()
     except (Exception, SystemExit) as exc:
-        if background or isinstance(exc,SystemExit) and exc.code in (None,0):
-            return
+        if isinstance(exc,SystemExit) and exc.code in (None,0):
+            return 0
+        if directory and directory.is_dir():
+            try:
+                # Diagnóstico local de inicialização: sem telas, teclas ou tokens.
+                (directory/'startup-error.txt').write_text(traceback.format_exc(),encoding='utf-8')
+            except OSError:
+                pass
+        if background or options.no_browser:
+            return 1
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk()
@@ -67,3 +77,4 @@ def launch(role):
             messagebox.showerror('Smart PDV '+role, str(exc), parent=root)
         finally:
             root.destroy()
+        return 1

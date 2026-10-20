@@ -21,7 +21,17 @@ if ($LASTEXITCODE -ne 0) { throw 'Preparacao dos dados de teste falhou' }
 $process = Start-Process -FilePath (Join-Path $smoke 'Central\SmartPDV-Central.exe') -ArgumentList @('--no-browser','--data',('"' + $env:SMARTPDV_SMOKE_DATA + '"')) -PassThru
 try {
     & .\.venv\Scripts\python.exe tests\packaged_probe.py (Join-Path $env:SMARTPDV_SMOKE_DATA 'central.crt') 'https://127.0.0.1:18443'
-    if ($LASTEXITCODE -ne 0) { throw 'Central instalada nao passou no teste HTTPS' }
+    if ($LASTEXITCODE -ne 0) {
+        $diagnostic = Join-Path $env:SMARTPDV_SMOKE_DATA 'startup-error.txt'
+        if (Test-Path $diagnostic) {
+            $detail = Get-Content $diagnostic -Raw
+            Write-Host $detail
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $detail
+            Write-Host ('::error title=Central startup::' + ($detail -replace '\r?\n', '%0A'))
+        }
+        if ($process.HasExited) { Write-Host 'Central exit code:' $process.ExitCode }
+        throw 'Central instalada nao passou no teste HTTPS'
+    }
 } finally {
     if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
 }

@@ -1,2 +1,2 @@
 from smartpdv.desktop_entry import launch
-launch('agent')
+raise SystemExit(launch('agent') or 0)
