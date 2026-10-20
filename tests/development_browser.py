@@ -9,7 +9,6 @@ import tempfile
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from test_development import laboratory
-from test_system import PASSWORD
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 from playwright.async_api import async_playwright
@@ -36,9 +35,6 @@ async def main():
                     await route.fulfill(json={'version':version['value']})
                 await page.route('**/dev/version',version_response)
                 await page.goto(url)
-                await page.locator('input[name=name]').fill('desenvolvimento')
-                await page.locator('input[name=password]').fill(PASSWORD)
-                await page.locator('#login button').click()
                 await page.locator('.card').nth(1).wait_for()
                 await page.locator('#audio').click()
                 operator=await context.new_page()
@@ -85,13 +81,10 @@ async def main():
                 async with page.expect_navigation(wait_until='domcontentloaded'):
                     version['value']=2
                 await page.locator('.card').nth(1).wait_for()
-                assert await page.locator('#login').is_hidden()
                 await page.screenshot(path=str(path/'development-central.png'))
                 assert errors==[],errors
-                await page.locator('#logout').click()
-                await page.locator('#login').wait_for(state='visible')
                 await browser.close()
-                print('PASS: duas abas, dois Agents reais com desktops simulados, chamados, teclado e mouse, liberação, alternância, tela cheia, desconectar/reconectar, reset, auto-reload, login preservado e logout; nenhum erro JS.')
+                print('PASS: duas abas, dois Agents reais com desktops simulados, chamados, teclado e mouse, liberação, alternância, tela cheia, desconectar/reconectar, reset, auto-reload, entrada direta; nenhum erro JS.')
         finally:
             await runner.cleanup()
 

@@ -5,7 +5,7 @@ const rows=new Map();
 async function action(number,action){
   try{
     const r=await fetch('/dev/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number,action})});
-    if(!r.ok)throw Error(r.status===401?'Sessão encerrada: faça login na Central.':'Não foi possível executar o comando.');
+    if(!r.ok)throw Error(r.status===401?'Sessão encerrada: atualize a Central neste computador.':'Não foi possível executar o comando.');
     message.textContent=`PDV ${number}: comando ${action} enviado.`;
     await refresh();
   }catch(e){message.textContent=e.message;}
@@ -13,7 +13,7 @@ async function action(number,action){
 async function refresh(){
   try{
     const r=await fetch('/dev/state');
-    if(!r.ok)throw Error('Abra a Central e faça login para continuar.');
+    if(!r.ok)throw Error('Abra a Central neste computador para continuar.');
     const data=await r.json();
     for(const p of data.pdvs){
       if(!rows.has(p.number)){

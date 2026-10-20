@@ -6,7 +6,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 necessário no computador de build
 if ($LASTEXITCODE -ne 0) { throw 'Instalação falhou' }
 foreach ($role in @('Central', 'Agent')) {
     $entry = 'packaging/' + $role.ToLower() + '_entry.py'
-    & .\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --console --paths . --collect-all aiohttp --collect-all cryptography --collect-all PIL --add-data 'smartpdv/web;smartpdv/web' --name "SmartPDV-$role" $entry
+    $windowMode = '--windowed'
+    & .\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir $windowMode --paths . --collect-all aiohttp --collect-all cryptography --collect-all PIL --add-data 'smartpdv/web;smartpdv/web' --name "SmartPDV-$role" $entry
     if ($LASTEXITCODE -ne 0) { throw "Build $role falhou" }
     & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppRole=$role" packaging\setup.iss
     if ($LASTEXITCODE -ne 0) { throw "Instalador $role falhou" }

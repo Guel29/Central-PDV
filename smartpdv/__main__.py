@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import getpass
 import json
+import subprocess
 import os
 from pathlib import Path
 import secrets
@@ -9,7 +10,7 @@ import sys
 import uuid
 from aiohttp import web
 from .storage import atomic_json, load_json, protect, secure_directory
-from .security import create_certificate, password_hash, tls_context, token_hash
+from .security import create_certificate, tls_context, token_hash
 
 
 def ask(label, secret=False):
@@ -30,14 +31,9 @@ def setup_central(directory):
     if (directory / 'central.json').exists():
         raise SystemExit('Central já configurada; use add-pdv para cadastrar novos caixas')
     host = ask('IP ou nome LAN da Central (usado no certificado)')
-    name = ask('Nome do supervisor administrador')
-    password = ask('Senha do supervisor (mínimo 8 caracteres)', True)
-    if len(password) < 8 or not name:
-        raise SystemExit('Nome e senha forte obrigatórios')
     fingerprint = create_certificate(directory, host)
     atomic_json(directory / 'central.json', {'host':'0.0.0.0', 'port':8443, 'hostname':host,
         'fingerprint':fingerprint, 'pdvs':[],
-        'supervisors':[{'name':name, 'password_hash':password_hash(password), 'control':True}],
         'alarm':{'enabled':True,'repeat_seconds':10}, 'dashboard':{'columns':4},
         'logs':{'retention_days':30,'max_bytes':5000000}})
 
@@ -59,18 +55,29 @@ def add_pdv(directory):
     print('Pareamento criado em', export, '— reinicie a Central após cadastrar.')
 
 
-def add_supervisor(directory):
+def trust_certificate(directory):
+    if os.name != 'nt':
+        raise SystemExit('A instalação de confiança deste comando exige Windows')
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
     config = load_json(directory / 'central.json')
-    name = ask('Nome do supervisor')
-    if not name or any(u['name'] == name for u in config['supervisors']):
-        raise SystemExit('Nome inválido ou já cadastrado')
-    password = ask('Senha (mínimo 8 caracteres)', True)
-    if len(password) < 8:
-        raise SystemExit('Senha curta demais')
-    control = ask('Permitir controle remoto? (s/n)').lower() == 's'
-    config['supervisors'].append({'name':name, 'password_hash':password_hash(password), 'control':control})
-    atomic_json(directory / 'central.json', config)
-    print('Supervisor cadastrado; reinicie a Central.')
+    certificate = directory / 'central.crt'
+    actual = x509.load_pem_x509_certificate(certificate.read_bytes()).fingerprint(hashes.SHA256()).hex()
+    if not secrets.compare_digest(actual, config['fingerprint']):
+        raise SystemExit('Certificado diferente do cadastro. Confiança não alterada.')
+    import tkinter as tk
+    from tkinter import messagebox
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        if not messagebox.askyesno('Certificado da Central local',
+            'Adicionar à confiança deste usuário Windows o certificado local da Central?\n'
+            'Isso permite abrir o dashboard HTTPS neste computador.\nSHA-256: ' + actual, parent=root):
+            return
+        subprocess.run(['certutil', '-user', '-addstore', 'Root', str(certificate)], check=True, capture_output=True)
+        messagebox.showinfo('Smart PDV', 'Certificado local instalado para este usuário.', parent=root)
+    finally:
+        root.destroy()
 
 
 def setup_agent(directory):
@@ -90,17 +97,29 @@ def setup_agent(directory):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('role', choices=['central','agent'])
-    parser.add_argument('action', nargs='?', default='run', choices=['run','setup','add-pdv','add-supervisor'])
+    parser.add_argument('action', nargs='?', default='run', choices=['run','setup','add-pdv','trust-certificate','check-config'])
     parser.add_argument('--data', type=Path)
     args = parser.parse_args()
     base = Path(os.environ.get('LOCALAPPDATA', str(Path.home() / '.local' / 'share')))
     directory = secure_directory(args.data or base / 'SmartPDV' / args.role)
     if args.action == 'setup':
         return setup_central(directory) if args.role == 'central' else setup_agent(directory)
-    if args.action in ('add-pdv', 'add-supervisor'):
+    if args.action == 'check-config':
+        if args.role != 'agent':
+            parser.error('check-config é exclusivo do Agent')
+        from .storage import unprotect
+        config = load_json(directory / 'agent.json')
+        unprotect(config['token'])
+        print('Cadastro do PDV e credencial Windows disponíveis.')
+        return
+    if args.action == 'trust-certificate':
+        if args.role != 'central':
+            parser.error('trust-certificate é exclusivo da Central')
+        return trust_certificate(directory)
+    if args.action == 'add-pdv':
         if args.role != 'central':
             parser.error('add-pdv é exclusivo da Central')
-        return add_pdv(directory) if args.action == 'add-pdv' else add_supervisor(directory)
+        return add_pdv(directory)
     if args.role == 'central':
         from .central import Central
         central = Central(directory)

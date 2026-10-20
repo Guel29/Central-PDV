@@ -90,22 +90,13 @@ function connect() {
       try{
         const response=await fetch('/session');
         if(response.status===401){
-          stopped=true;$('workspace').hidden=true;$('login').hidden=false;
-          $('connection').textContent='Sessão encerrada · Entre novamente';return;
+          stopped=true;$('connection').textContent='Acesso local indisponível';return;
         }
       }catch{ /* A Central pode estar reiniciando. */ }
       if(!stopped)reconnectTimer=setTimeout(connect,3000);
     }
   };
 }
-$('login').onsubmit=async e=>{
-  e.preventDefault();const data=Object.fromEntries(new FormData(e.target));
-  try{const response=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    if(!response.ok) throw Error('Credenciais inválidas ou limite de tentativas.');
-    $('login').hidden=true;$('workspace').hidden=false;$('error').textContent='';e.target.reset();stopped=false;connect();
-  }catch(err){$('error').textContent=err.message;}
-};
-$('logout').onclick=async()=>{stopped=true;clearTimeout(reconnectTimer);endRemote();await fetch('/logout',{method:'POST'});socket?.close();$('workspace').hidden=true;$('login').hidden=false;};
 $('audio').onclick=async()=>{audio ||= new AudioContext();await audio.resume();$('audio').textContent='Alarme ativado';if(lastPending)beep();};
 $('close').onclick=endRemote;$('remote').addEventListener('cancel',e=>{e.preventDefault();endRemote();});
 $('switch').onchange=e=>openRemote(Number(e.target.value));
@@ -130,11 +121,12 @@ screen.onblur=()=>input({kind:'release'});
 screen.onpointercancel=()=>input({kind:'release'});
 screen.addEventListener('wheel',e=>{e.preventDefault();input({kind:'wheel',delta:e.deltaY<0?120:-120});},{passive:false});
 
-// Restaurar o login ao atualizar a página, sem persistir senha no navegador.
+// Entrada direta, restrita ao computador Central, com sessão local automática.
 async function restoreSession(){
   try{
     const response=await fetch('/session');
-    if(response.ok){$('login').hidden=true;$('workspace').hidden=false;stopped=false;connect();}
-  }catch{ $('connection').textContent='Central indisponível'; }
+    if(!response.ok)throw Error('Abra o dashboard no próprio computador Central.');
+    stopped=false;connect();
+  }catch(e){$('connection').textContent=e.message;}
 }
 restoreSession();

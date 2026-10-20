@@ -1,7 +1,7 @@
 import asyncio,base64,hashlib,sys,tempfile,os
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from test_system import prepare,start,TOKEN,PASSWORD,FakeDesktop
+from test_system import prepare,start,TOKEN,FakeDesktop
 from aiohttp import ClientSession,Fingerprint
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
@@ -27,9 +27,6 @@ async def main():
     page=await browser.new_page(viewport={'width':1440,'height':1000})
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     await page.goto(f'https://127.0.0.1:{port}')
-    await page.locator('input[name=name]').fill('supervisor')
-    await page.locator('input[name=password]').fill(PASSWORD)
-    await page.locator('#login button').click()
     await page.locator('.card').wait_for()
     await page.locator('#audio').click()
     await page.evaluate('''() => { window.beepCount=0; const original=AudioContext.prototype.createOscillator; AudioContext.prototype.createOscillator=function(...args){window.beepCount++;return original.apply(this,args);}; }''')
@@ -57,11 +54,9 @@ async def main():
     await agent.close()
     await reader
     await page.locator('.card.offline').wait_for()
-    await page.locator('#logout').click()
-    await page.locator('#login').wait_for(state='visible')
     assert errors==[],errors
     await browser.close()
-    print('PASS Chromium: login, card, F11 request, alarm enable, remote session, keyboard forwarding, triple beep and 10-second repeat, end, offline, logout; no JS errors')
+    print('PASS Chromium: entrada direta, card, F11 request, alarm enable, remote session, keyboard forwarding, triple beep and 10-second repeat, end, offline; no JS errors')
   finally:
    await runner.cleanup()
 asyncio.run(main())

@@ -1,11 +1,18 @@
 name: Windows installers
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/windows-build.yml'
 permissions:
   contents: read
 jobs:
   installers:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,8 +33,34 @@ jobs:
         run: |
           ./.venv/Scripts/python.exe -m pytest -q
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+      - name: Test installed Windows applications
+        shell: pwsh
+        run: ./packaging/windows-smoke.ps1
+      - name: Compute SHA256 checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/installers/*-Setup.exe | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Set-Content -Encoding utf8 dist/installers/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: SmartPDV-Windows-Installers
-          path: dist/installers/*-Setup.exe
+          path: dist/installers/*
           if-no-files-found: error
+      - name: Publish test installers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "windows-test-$env:GITHUB_RUN_NUMBER-$env:GITHUB_RUN_ATTEMPT"
+          $notes = Join-Path $env:RUNNER_TEMP 'smartpdv-release.md'
+          @'
+          Dois instaladores independentes para testes em Windows x64.
+          Central: dashboard local HTTPS. Agent: captura/controle Windows reais, sem console, inicialização após login.
+          Cadastre e pareie somente computadores autorizados da LAN. Configure o certificado local na Central.
+          Binários sem assinatura Authenticode. Esta versão é para testes; captura e entrada física precisam de validação nos computadores de destino.
+          Verifique SHA256SUMS.txt. Não é necessário Python nem internet para instalar/executar os aplicativos.
+          '@ | Set-Content -Encoding utf8 $notes
+          gh release create $tag dist/installers/SmartPDV-Central-Setup.exe dist/installers/SmartPDV-Agent-Setup.exe dist/installers/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "Smart PDV - instaladores Windows para testes $env:GITHUB_RUN_NUMBER" --notes-file $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

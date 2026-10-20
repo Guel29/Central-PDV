@@ -12,10 +12,9 @@ from PIL import Image
 import pytest
 from smartpdv.central import Central
 from smartpdv.agent import Agent, lan_address
-from smartpdv.security import create_certificate, password_hash, tls_context, token_hash
+from smartpdv.security import create_certificate, tls_context, token_hash
 from smartpdv.storage import atomic_json, load_json, protect, unprotect
 
-PASSWORD = 'test-only-long-password'
 TOKEN = 'test-only-agent-credential'
 
 
@@ -23,8 +22,6 @@ def prepare(path):
     fingerprint = create_certificate(path, '127.0.0.1')
     atomic_json(path / 'central.json', {'host':'127.0.0.1','port':0,'hostname':'127.0.0.1',
         'fingerprint':fingerprint,'pdvs':[{'number':1,'computer_id':'test-device','token_hash':token_hash(TOKEN)}],
-        'supervisors':[{'name':'supervisor','password_hash':password_hash(PASSWORD),'control':True},
-                       {'name':'viewer','password_hash':password_hash(PASSWORD),'control':False}],
         'alarm':{'enabled':True,'repeat_seconds':10},'dashboard':{'columns':4},
         'logs':{'retention_days':7,'max_bytes':1}})
     return fingerprint
@@ -48,10 +45,10 @@ async def state(ws, predicate):
     return await asyncio.wait_for(receive(), 5)
 
 
-async def login(client, url, fingerprint, name='supervisor'):
-    response = await client.post(url+'/login', ssl=fingerprint, headers={'Origin':url},
-                                 json={'name':name,'password':PASSWORD})
+async def local_session(client, url, fingerprint):
+    response = await client.get(url+'/session',ssl=fingerprint)
     assert response.status == 200
+    assert (await response.json())['direct_access']
     return {'Origin':url, 'Cookie':'session='+response.cookies['session'].value}
 
 
@@ -70,7 +67,7 @@ def test_tls_auth_and_full_workflow(tmp_path):
                     await client.ws_connect(url+'/agent',ssl=pin)
                 with pytest.raises(ServerFingerprintMismatch):
                     await client.get(url+'/health',ssl=Fingerprint(b'0'*32))
-                headers=await login(client,url,pin)
+                headers=await local_session(client,url,pin)
                 with pytest.raises(ClientResponseError):
                     await client.ws_connect(url+'/dashboard',ssl=pin,headers={**headers,'Origin':'https://evil.invalid'})
                 dashboard=await client.ws_connect(url+'/dashboard',ssl=pin,headers=headers)
@@ -109,18 +106,20 @@ def test_permissions_and_session_ownership(tmp_path):
         try:
             async with ClientSession() as client:
                 agent=await client.ws_connect(url+'/agent',ssl=pin,headers={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN})
-                viewer=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await login(client,url,pin,'viewer'))
-                await state(viewer,lambda s:s['online'])
-                await viewer.send_json({'type':'start','number':1})
-                await asyncio.sleep(.1)
-                assert not central.state[1]['active']
-                owner=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await login(client,url,pin))
+                owner=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
                 await state(owner,lambda s:s['online'])
                 await owner.send_json({'type':'start','number':1})
                 assert (await agent.receive_json())['active']
+                expected_owner=central.state[1]['owner']
+                observer=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
+                await state(observer,lambda s:s['active'])
+                await observer.send_json({'type':'start','number':1})
+                while (await observer.receive_json())['type'] != 'error':
+                    pass
+                assert central.state[1]['owner']==expected_owner
                 await owner.close()
                 assert not (await agent.receive_json())['active']
-                await viewer.close()
+                await observer.close()
                 await agent.close()
         finally:
             await runner.cleanup()
@@ -232,7 +231,7 @@ def test_duplicate_agent_and_session_expiration(tmp_path):
                 with pytest.raises(ClientResponseError) as failure:
                     await client.ws_connect(url+'/agent',ssl=pin,headers=identity)
                 assert failure.value.status==409
-                headers=await login(client,url,pin)
+                headers=await local_session(client,url,pin)
                 dashboard=await client.ws_connect(url+'/dashboard',ssl=pin,headers=headers)
                 await state(dashboard,lambda s:s['online'])
                 await dashboard.send_json({'type':'start','number':1})
@@ -252,13 +251,12 @@ def test_duplicate_agent_and_session_expiration(tmp_path):
 
 def test_initial_setup_and_pairing(tmp_path, monkeypatch):
     from smartpdv import __main__ as cli
-    from smartpdv.security import verify_password
     central_dir=tmp_path/'central'
-    answers=iter(['127.0.0.1','admin',PASSWORD])
+    answers=iter(['127.0.0.1'])
     monkeypatch.setattr(cli,'ask',lambda *args:next(answers))
     cli.setup_central(central_dir)
     config=load_json(central_dir/'central.json')
-    assert verify_password(PASSWORD,config['supervisors'][0]['password_hash'])
+    assert 'supervisors' not in config
     monkeypatch.setattr(cli,'ask',lambda *args:'4')
     cli.add_pdv(central_dir)
     config=load_json(central_dir/'central.json')
@@ -273,9 +271,5 @@ def test_initial_setup_and_pairing(tmp_path, monkeypatch):
     assert agent_config['computer_id']==config['pdvs'][0]['computer_id']
     assert unprotect(agent_config['token'])==pairing['token']
     assert agent_config['number']==4
-    answers=iter(['view-only',PASSWORD,'n'])
-    monkeypatch.setattr(cli,'ask',lambda *args:next(answers))
-    cli.add_supervisor(central_dir)
-    assert load_json(central_dir/'central.json')['supervisors'][1]['control'] is False
     with pytest.raises(SystemExit):
         cli.setup_central(central_dir)

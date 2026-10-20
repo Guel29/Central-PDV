@@ -1,7 +1,6 @@
 """Laboratório local: Central e Agents reais, com desktops explicitamente simulados."""
 import argparse
 import asyncio
-import getpass
 import io
 import os
 from pathlib import Path
@@ -14,25 +13,22 @@ from aiohttp import web
 from PIL import Image, ImageDraw
 from .agent import Agent
 from .central import Central
-from .security import create_certificate, password_hash, tls_context, token_hash
+from .security import create_certificate, tls_context, token_hash
 from .storage import atomic_json, load_json, protect, secure_directory
 
 WEB = Path(__file__).parent / 'web'
 
 
-def initialize(directory, password, port=8443):
+def initialize(directory, port=8443):
     directory = secure_directory(directory)
     if (directory / 'central.json').exists():
         config = load_json(directory / 'central.json')
         if not config.get('development_only'):
             raise ValueError('Recusado: este diretório não é exclusivo de desenvolvimento')
         return config
-    if len(password) < 8:
-        raise ValueError('Escolha uma senha de desenvolvimento com pelo menos 8 caracteres')
     fingerprint = create_certificate(directory, '127.0.0.1')
     config = {'development_only': True, 'host':'127.0.0.1', 'hostname':'127.0.0.1',
               'port':port, 'fingerprint':fingerprint, 'pdvs':[],
-              'supervisors':[{'name':'desenvolvimento', 'password_hash':password_hash(password), 'control':True}],
               'alarm':{'enabled':True,'repeat_seconds':10}, 'dashboard':{'columns':3},
               'logs':{'retention_days':7,'max_bytes':1000000}}
     for number in (1, 2):
@@ -125,6 +121,7 @@ class DevelopmentCentral(Central):
         self.app.on_shutdown.insert(0, self.stop_agents)
 
     async def index(self, request):
+        self.require_console(request)
         html = (WEB/'index.html').read_text(encoding='utf-8')
         banner = ('<aside class="dev-banner"><strong>LABORATÓRIO · SIMULAÇÃO</strong> '
                   'Central e WebSocket reais; tela, F11 e entrada Windows simulados. '
@@ -206,17 +203,14 @@ def main():
     if args.print_data_directory:
         print(directory.resolve(strict=True))
         return
-    if (directory/'central.json').exists():
-        initialize(directory,'')
-    else:
-        initialize(directory,getpass.getpass('Crie a senha do laboratório (mínimo 8 caracteres): '))
+    initialize(directory)
     directory = directory.resolve(strict=True)
     if args.prepare:
         print('Laboratório preparado em:',directory)
         return
     central = DevelopmentCentral(directory)
     print('LABORATÓRIO: desktops e F11 simulados. Comunicação TLS/WebSocket real.')
-    print('Usuário: desenvolvimento. Senha: a escolhida na primeira execução.')
+    print('Entrada direta, sem usuário ou senha, apenas neste computador Central.')
     print('Central: https://127.0.0.1:8443 | Operador: /dev/operator')
     print('Certificado local:',directory/'central.crt')
     print('SHA-256 esperado:',central.config['fingerprint'])

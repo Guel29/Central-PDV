@@ -1,23 +1,12 @@
 import datetime as dt
 import hashlib
-import hmac
 import ipaddress
-import secrets
 import ssl
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 from .storage import secure_directory
-
-
-def password_hash(password, salt=None):
-    salt = salt or secrets.token_hex(16)
-    return salt + ':' + hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt), 600000).hex()
-
-
-def verify_password(password, encoded):
-    return hmac.compare_digest(password_hash(password, encoded.split(':')[0]), encoded)
 
 
 def token_hash(token):

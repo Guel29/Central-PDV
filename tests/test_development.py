@@ -7,11 +7,11 @@ import pytest
 from smartpdv.dev import DevelopmentCentral, SimulatedDesktop, initialize
 from smartpdv.security import tls_context
 from smartpdv.storage import atomic_json, load_json
-from test_system import PASSWORD, until
+from test_system import until
 
 
 async def laboratory(path):
-    config=initialize(path,PASSWORD,port=0)
+    config=initialize(path,port=0)
     central=DevelopmentCentral(path)
     runner=web.AppRunner(central.app)
     await runner.setup()
@@ -38,7 +38,7 @@ def test_development_controls_and_isolation(tmp_path):
             async with ClientSession() as client:
                 response=await client.get(url+'/dev/state',ssl=pin)
                 assert response.status==401
-                response=await client.post(url+'/login',ssl=pin,headers={'Origin':url},json={'name':'desenvolvimento','password':PASSWORD})
+                response=await client.get(url+'/session',ssl=pin)
                 assert response.status==200
                 headers={'Origin':url,'Cookie':'session='+response.cookies['session'].value}
                 for path in ('/dev/operator','/dev/panel.js','/dev/reload.js','/dev/version','/session'):
@@ -75,15 +75,12 @@ def test_simulated_desktop_explicit_render_and_input():
 def test_dev_refuses_production_config(tmp_path):
     atomic_json(tmp_path/'central.json',{'host':'0.0.0.0'})
     with pytest.raises(ValueError,match='exclusivo'):
-        initialize(tmp_path,PASSWORD)
+        initialize(tmp_path)
 
 
 def test_print_physical_directory_without_password_prompt(tmp_path,monkeypatch,capsys):
     import sys
     import smartpdv.dev as dev
-    def unexpected_prompt(*args):
-        raise AssertionError('Consulta de diretório não pode solicitar senha')
-    monkeypatch.setattr(dev.getpass,'getpass',unexpected_prompt)
     monkeypatch.setattr(sys,'argv',['smartpdv.dev','--data',str(tmp_path),'--print-data-directory'])
     dev.main()
     assert capsys.readouterr().out.strip()==str(tmp_path.resolve())

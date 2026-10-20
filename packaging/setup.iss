@@ -18,14 +18,27 @@ UninstallDisplayIcon={app}\SmartPDV-{#AppRole}.exe
 [Files]
 Source: "..\dist\SmartPDV-{#AppRole}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 [Tasks]
+#if AppRole == "Agent"
+Name: "autostart"; Description: "Iniciar Agent em segundo plano ao entrar no Windows"
+#else
 Name: "autostart"; Description: "Iniciar ao entrar no Windows"; Flags: unchecked
+#endif
 [Icons]
 Name: "{group}\SmartPDV {#AppRole}"; Filename: "{app}\SmartPDV-{#AppRole}.exe"
 Name: "{group}\Configuração inicial"; Filename: "{app}\SmartPDV-{#AppRole}.exe"; Parameters: "setup"
 #if AppRole == "Central"
-Name: "{group}\Cadastrar supervisor"; Filename: "{app}\SmartPDV-Central.exe"; Parameters: "add-supervisor"
+Name: "{group}\Confiar no certificado local"; Filename: "{app}\SmartPDV-Central.exe"; Parameters: "trust-certificate"
 Name: "{group}\Cadastrar PDV"; Filename: "{app}\SmartPDV-Central.exe"; Parameters: "add-pdv"
 #endif
-Name: "{userstartup}\SmartPDV {#AppRole}"; Filename: "{app}\SmartPDV-{#AppRole}.exe"; Tasks: autostart
+#if AppRole == "Agent"
+Name: "{userstartup}\SmartPDV Agent"; Filename: "{app}\SmartPDV-Agent.exe"; Parameters: "--background"; Tasks: autostart
+#else
+Name: "{userstartup}\SmartPDV Central"; Filename: "{app}\SmartPDV-Central.exe"; Tasks: autostart
+#endif
 [Run]
 Filename: "{app}\SmartPDV-{#AppRole}.exe"; Parameters: "setup"; Description: "Configurar {#AppRole}"; Flags: postinstall skipifsilent
+
+#if AppRole == "Central"
+Filename: "{app}\SmartPDV-Central.exe"; Parameters: "trust-certificate"; Description: "Configurar confiança no certificado HTTPS local"; Flags: postinstall skipifsilent unchecked
+Filename: "{app}\SmartPDV-Central.exe"; Description: "Abrir Central"; Flags: postinstall skipifsilent unchecked
+#endif

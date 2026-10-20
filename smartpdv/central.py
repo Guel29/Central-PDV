@@ -10,7 +10,7 @@ import time
 import os
 import threading
 from aiohttp import web, WSMsgType
-from .security import token_hash, verify_password
+from .security import token_hash
 from .storage import load_json
 
 
@@ -27,14 +27,12 @@ class Central:
         self.viewers = {}
         self.sessions = {}
         self.locks = {p['number']: asyncio.Lock() for p in self.config['pdvs']}
-        self.login_attempts = {}
         self.state = {p['number']: dict(number=p['number'], online=False, pending=False,
                       active=False, thumbnail=None, connected_at=None, requested_at=None,
                       supervisor=None, attended_at=None, owner=None) for p in self.config['pdvs']}
         self.app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[self.errors])
         self.app.add_routes([web.get('/', self.index), web.get('/app.js', self.asset),
-                            web.get('/style.css', self.asset), web.post('/login', self.login),
-                            web.post('/logout', self.logout), web.get('/session', self.session_info), web.get('/dashboard', self.dashboard),
+                            web.get('/style.css', self.asset), web.get('/session', self.session_info), web.get('/dashboard', self.dashboard),
                             web.get('/agent', self.agent), web.get('/health', self.health)])
         self.app.on_startup.append(self.start)
         self.app.on_shutdown.append(self.shutdown)
@@ -54,6 +52,7 @@ class Central:
         return response
 
     async def index(self, request):
+        self.require_console(request)
         return web.FileResponse(Path(__file__).parent / 'web' / 'index.html')
 
     async def asset(self, request):
@@ -65,42 +64,42 @@ class Central:
     def same_origin(self, request):
         return request.headers.get('Origin') == f'https://{request.host}'
 
+    @staticmethod
+    def is_console(request):
+        if not request.remote:
+            return False
+        remote = ipaddress.ip_address(request.remote)
+        if remote.is_loopback:
+            return True
+        local = request.transport.get_extra_info('sockname') if request.transport else None
+        return bool(local and remote == ipaddress.ip_address(local[0]))
+
+    def require_console(self, request):
+        if not self.is_console(request):
+            raise web.HTTPForbidden(text='Abra o dashboard no próprio computador Central')
+
     def supervisor(self, request):
+        self.require_console(request)
         session = self.sessions.get(request.cookies.get('session'))
         if not session or session['expires'] < time.monotonic():
             raise web.HTTPUnauthorized()
         return session
 
-    async def login(self, request):
-        if not self.same_origin(request):
-            raise web.HTTPForbidden()
-        remote = request.remote
-        attempts = [t for t in self.login_attempts.get(remote, []) if t > time.monotonic() - 60]
-        self.login_attempts[remote] = attempts
-        if len(attempts) >= 5:
-            raise web.HTTPTooManyRequests()
-        attempts.append(time.monotonic())
-        data = await request.json()
-        user = next((u for u in self.config['supervisors'] if u['name'] == data.get('name')), None)
-        if not user or not await asyncio.to_thread(verify_password, data.get('password', ''), user['password_hash']):
-            raise web.HTTPUnauthorized()
-        token = secrets.token_urlsafe(32)
-        self.sessions[token] = {'name': user['name'], 'control': user['control'],
-                                'expires': time.monotonic() + 8 * 3600, 'token': token}
-        result = web.json_response({'name': user['name']})
-        result.set_cookie('session', token, secure=True, httponly=True, samesite='Strict', max_age=28800)
-        return result
-
     async def session_info(self, request):
-        session = self.supervisor(request)
-        return web.json_response({'name':session['name'], 'control':session['control']})
-
-    async def logout(self, request):
-        if not self.same_origin(request):
+        self.require_console(request)
+        if request.headers.get('Origin') and not self.same_origin(request):
             raise web.HTTPForbidden()
-        self.sessions.pop(request.cookies.get('session'), None)
-        result = web.json_response({'ok': True})
-        result.del_cookie('session')
+        if request.headers.get('Sec-Fetch-Site') == 'cross-site':
+            raise web.HTTPForbidden()
+        token = request.cookies.get('session')
+        session = self.sessions.get(token)
+        if not session or session['expires'] < time.monotonic():
+            token = secrets.token_urlsafe(32)
+            session = {'name':'Central', 'control':True,
+                       'expires':time.monotonic()+8*3600, 'token':token}
+            self.sessions[token] = session
+        result = web.json_response({'name':'Central','control':True,'direct_access':True})
+        result.set_cookie('session',token,secure=True,httponly=True,samesite='Strict',max_age=28800)
         return result
 
     async def publish(self):

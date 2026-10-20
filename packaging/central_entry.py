@@ -1,4 +1,2 @@
-import sys
-from smartpdv.__main__ import main
-sys.argv.insert(1, 'central')
-main()
+from smartpdv.desktop_entry import launch
+launch('central')
