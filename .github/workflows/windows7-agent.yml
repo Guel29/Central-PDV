@@ -37,7 +37,8 @@ jobs:
         run: |
           python tests/legacy_agent_probe.py legacy-agent/bin/Release/SmartPDV-Agent-Win7.exe 2>&1 | Tee-Object probe.log
           if ($LASTEXITCODE -ne 0) {
-            Get-Content probe.log | Select-Object -Last 45 | ForEach-Object { Write-Host "::error::$_" }
+            $details = (Get-Content probe.log | Select-Object -Last 12) -join '%0A'
+            Write-Host "::error::$details"
             throw 'Interoperability failed'
           }
       - name: Install verified compiler compatible with Windows 7
@@ -66,7 +67,8 @@ jobs:
           if ($p.ExitCode -ne 0) { throw 'Installer failed' }
           python tests/legacy_agent_probe.py "$install/SmartPDV-Agent-Win7.exe" 2>&1 | Tee-Object installed-probe.log
           if ($LASTEXITCODE -ne 0) {
-            Get-Content installed-probe.log | Select-Object -Last 45 | ForEach-Object { Write-Host "::error::$_" }
+            $details = (Get-Content installed-probe.log | Select-Object -Last 12) -join '%0A'
+            Write-Host "::error::$details"
             throw 'Installed Agent failed'
           }
           $p = Start-Process "$install/SmartPDV-Agent-Win7.exe" -ArgumentList '--background','--data',"$env:RUNNER_TEMP/empty-agent" -PassThru
