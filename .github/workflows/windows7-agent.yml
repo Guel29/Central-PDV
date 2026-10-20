@@ -44,9 +44,13 @@ jobs:
         shell: pwsh
         run: |
           $file = Join-Path $env:RUNNER_TEMP 'innosetup-6.2.2.exe'
-          Invoke-WebRequest https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe -OutFile $file
+          try { Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_2_2/innosetup-6.2.2.exe -OutFile $file }
+          catch { Write-Host "::error::Compiler download: $($_.Exception.Message)"; throw }
           $signature = Get-AuthenticodeSignature $file
-          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Jordan Russell') { throw 'Invalid compiler signature' }
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Jordan Russell|JRSoftware') {
+            Write-Host "::error::Compiler signature: $($signature.Status), $($signature.SignerCertificate.Subject)"
+            throw 'Invalid compiler signature'
+          }
           $compiler = Join-Path $env:RUNNER_TEMP 'inno-legacy'
           $p = Start-Process $file -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$compiler" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw 'Compiler setup failed' }
