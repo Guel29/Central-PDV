@@ -34,7 +34,7 @@ class Central:
         self.app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[self.errors])
         self.app.add_routes([web.get('/', self.index), web.get('/app.js', self.asset),
                             web.get('/style.css', self.asset), web.post('/login', self.login),
-                            web.post('/logout', self.logout), web.get('/dashboard', self.dashboard),
+                            web.post('/logout', self.logout), web.get('/session', self.session_info), web.get('/dashboard', self.dashboard),
                             web.get('/agent', self.agent), web.get('/health', self.health)])
         self.app.on_startup.append(self.start)
         self.app.on_shutdown.append(self.shutdown)
@@ -90,6 +90,10 @@ class Central:
         result = web.json_response({'name': user['name']})
         result.set_cookie('session', token, secure=True, httponly=True, samesite='Strict', max_age=28800)
         return result
+
+    async def session_info(self, request):
+        session = self.supervisor(request)
+        return web.json_response({'name':session['name'], 'control':session['control']})
 
     async def logout(self, request):
         if not self.same_origin(request):

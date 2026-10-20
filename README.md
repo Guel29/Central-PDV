@@ -2,6 +2,10 @@
 
 Central e Agent para Windows 10/11 x64, criados do zero. Execução exclusivamente na LAN, sem banco de dados, CDN, telemetria, API externa ou serviços de nuvem. Python 3.12 é necessário **somente para desenvolvimento/build**; os instaladores incluem o runtime.
 
+## Testar a interface antes dos instaladores
+
+Veja [DEVELOPMENT.md](DEVELOPMENT.md): laboratório em duas abas, com Central real e dois Agents usando desktops explicitamente simulados. No Windows, execute `powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -TrustLocalCertificate` na raiz. O documento explica o certificado local, o login e cada teste. Nenhum instalador é gerado por esse comando.
+
 ## Arquitetura implementada
 
 - A Central hospeda o dashboard HTTPS e o endpoint WebSocket TLS na porta 8443. O Agent abre a conexão; nenhuma porta de entrada é necessária nos caixas.

@@ -82,11 +82,20 @@ function connect() {
       if(selected===p.number)$('screen').src=src;
     }
   };
-  socket.onclose=()=>{
+  socket.onclose=async()=>{
     $('connection').textContent='Central desconectada · Reconectando';
     clearInterval(alarmTimer);lastPending=false;selected=null;$('remote').close();
     for(const {card,info} of cards.values()){card.className='card offline';card.disabled=true;info.textContent='Conexão com a Central perdida';}
-    if(!stopped) reconnectTimer=setTimeout(connect,3000);
+    if(!stopped){
+      try{
+        const response=await fetch('/session');
+        if(response.status===401){
+          stopped=true;$('workspace').hidden=true;$('login').hidden=false;
+          $('connection').textContent='Sessão encerrada · Entre novamente';return;
+        }
+      }catch{ /* A Central pode estar reiniciando. */ }
+      if(!stopped)reconnectTimer=setTimeout(connect,3000);
+    }
   };
 }
 $('login').onsubmit=async e=>{
@@ -100,7 +109,11 @@ $('logout').onclick=async()=>{stopped=true;clearTimeout(reconnectTimer);endRemot
 $('audio').onclick=async()=>{audio ||= new AudioContext();await audio.resume();$('audio').textContent='Alarme ativado';if(lastPending)beep();};
 $('close').onclick=endRemote;$('remote').addEventListener('cancel',e=>{e.preventDefault();endRemote();});
 $('switch').onchange=e=>openRemote(Number(e.target.value));
-$('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else $('remote').requestFullscreen();};
+$('fullscreen').onclick=async()=>{
+  try{if(document.fullscreenElement)await document.exitFullscreen();else await $('remote-content').requestFullscreen();}
+  catch{$('connection').textContent='Tela cheia indisponível neste navegador';}
+};
+document.addEventListener('fullscreenchange',()=>{$('fullscreen').textContent=document.fullscreenElement?'Sair da tela cheia':'Tela cheia';});
 const screen=$('screen');
 function point(e,action){
   const r=screen.getBoundingClientRect(), ratio=(screen.naturalWidth||16)/(screen.naturalHeight||9);
@@ -116,3 +129,12 @@ for(const action of ['down','up'])screen.addEventListener('key'+action,e=>{if(e.
 screen.onblur=()=>input({kind:'release'});
 screen.onpointercancel=()=>input({kind:'release'});
 screen.addEventListener('wheel',e=>{e.preventDefault();input({kind:'wheel',delta:e.deltaY<0?120:-120});},{passive:false});
+
+// Restaurar o login ao atualizar a página, sem persistir senha no navegador.
+async function restoreSession(){
+  try{
+    const response=await fetch('/session');
+    if(response.ok){$('login').hidden=true;$('workspace').hidden=false;stopped=false;connect();}
+  }catch{ $('connection').textContent='Central indisponível'; }
+}
+restoreSession();
