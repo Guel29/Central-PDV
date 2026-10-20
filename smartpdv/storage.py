@@ -13,7 +13,8 @@ def _windows_user_sid():
     result = subprocess.run(['whoami', '/user', '/fo', 'csv', '/nh'],
                             check=True, capture_output=True, text=True,
                             encoding='utf-8', errors='replace',
-                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                            stdin=subprocess.DEVNULL)
     rows = list(csv.reader(result.stdout.splitlines()))
     if len(rows) != 1 or len(rows[0]) != 2:
         raise RuntimeError('Não foi possível identificar o SID do usuário Windows')
@@ -37,7 +38,8 @@ def _secure_windows_directory(path):
         try:
             subprocess.run(command, check=True, capture_output=True, text=True,
                            encoding='utf-8', errors='replace',
-                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                            stdin=subprocess.DEVNULL)
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or exc.stdout or '').strip()
             raise RuntimeError(

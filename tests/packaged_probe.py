@@ -4,9 +4,11 @@ from pathlib import Path
 import ssl
 import sys
 import time
+import traceback
 import urllib.request
 
-certificate,url=sys.argv[1:]
+certificate,url=sys.argv[1:3]
+report=Path(sys.argv[3]) if len(sys.argv)>3 else None
 context=ssl.create_default_context(cafile=certificate)
 opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=context))
 for attempt in range(40):
@@ -21,6 +23,9 @@ for attempt in range(40):
         print('PASS installed Central: HTTPS, session bootstrap, dashboard assets, no login')
         break
     except OSError:
-        if attempt==39:
+        startup=Path(certificate).parent/'startup-error.txt'
+        if attempt==39 or startup.exists():
+            if report:
+                report.write_text(traceback.format_exc(),encoding='utf-8')
             raise
         time.sleep(1)

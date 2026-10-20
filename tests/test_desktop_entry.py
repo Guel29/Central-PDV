@@ -33,3 +33,13 @@ def test_manual_first_launch_configures_then_runs(tmp_path,monkeypatch):
     desktop_entry.launch('agent')
     assert calls[0][1:3]==['agent','setup']
     assert calls[1][1:]==['agent','--data',str(tmp_path)]
+
+
+def test_bootstrap_captures_missing_frozen_import_without_popup(tmp_path,monkeypatch):
+    from smartpdv import bootstrap
+    monkeypatch.setattr(sys,'argv',['SmartPDV-Central.exe','--no-browser','--data',str(tmp_path)])
+    def missing(name):
+        raise ModuleNotFoundError('Synthetic frozen import failure')
+    monkeypatch.setattr(bootstrap.importlib,'import_module',missing)
+    assert bootstrap.run('central')==1
+    assert 'Synthetic frozen import failure' in (tmp_path/'startup-error.txt').read_text()

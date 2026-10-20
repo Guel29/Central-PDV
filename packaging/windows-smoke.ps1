@@ -20,7 +20,7 @@ $env:SMARTPDV_SMOKE_DATA = Join-Path $smoke 'central-data'
 if ($LASTEXITCODE -ne 0) { throw 'Preparacao dos dados de teste falhou' }
 $process = Start-Process -FilePath (Join-Path $smoke 'Central\SmartPDV-Central.exe') -ArgumentList @('--no-browser','--data',('"' + $env:SMARTPDV_SMOKE_DATA + '"')) -PassThru
 try {
-    & .\.venv\Scripts\python.exe tests\packaged_probe.py (Join-Path $env:SMARTPDV_SMOKE_DATA 'central.crt') 'https://127.0.0.1:18443'
+    & .\.venv\Scripts\python.exe tests\packaged_probe.py (Join-Path $env:SMARTPDV_SMOKE_DATA 'central.crt') 'https://127.0.0.1:18443' (Join-Path $env:SMARTPDV_SMOKE_DATA 'probe-error.txt')
     if ($LASTEXITCODE -ne 0) {
         $diagnostic = Join-Path $env:SMARTPDV_SMOKE_DATA 'startup-error.txt'
         if (Test-Path $diagnostic) {
@@ -28,6 +28,12 @@ try {
             Write-Host $detail
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $detail
             Write-Host ('::error title=Central startup::' + ($detail -replace '\r?\n', '%0A'))
+        }
+        $probeReport = Join-Path $env:SMARTPDV_SMOKE_DATA 'probe-error.txt'
+        if (Test-Path $probeReport) {
+            $probeDetail = Get-Content $probeReport -Raw
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $probeDetail
+            Write-Host ('::error title=HTTPS probe::' + ($probeDetail -replace '\r?\n', '%0A'))
         }
         if ($process.HasExited) { Write-Host 'Central exit code:' $process.ExitCode }
         throw 'Central instalada nao passou no teste HTTPS'

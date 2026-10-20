@@ -1,2 +1,2 @@
-from smartpdv.desktop_entry import launch
-raise SystemExit(launch('central') or 0)
+from smartpdv.bootstrap import run
+raise SystemExit(run('central'))
