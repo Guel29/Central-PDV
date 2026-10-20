@@ -47,7 +47,7 @@ O script verifica falhas de cada comando e usa PyInstaller onedir com dependênc
 
 ## Instalar e parear na LAN
 
-1. Instale a Central no computador supervisor. Abra **Configuração inicial** no menu Iniciar. Informe o IP/nome LAN, supervisor e senha de pelo menos 12 caracteres. Use IP reservado no DHCP ou nome local estável.
+1. Instale a Central no computador supervisor. Abra **Configuração inicial** no menu Iniciar. Informe o IP/nome LAN, supervisor e senha de pelo menos 8 caracteres. Use IP reservado no DHCP ou nome local estável.
 2. Abra **Cadastrar PDV** para cada caixa. O cadastro cria um arquivo de pareamento em `%LOCALAPPDATA%\SmartPDV\central\pairing\pdv-N.json`. Ele contém uma credencial de bootstrap: transfira diretamente por mídia segura, importe no Agent e exclua as cópias depois. Não envie esse arquivo para Git ou logs. Não reaproveite o cadastro em outro caixa.
 3. Instale o Agent. Em **Configuração inicial**, selecione o caminho do pareamento e confirme o endereço da Central e o número do PDV. A credencial importada é protegida com DPAPI para o usuário Windows atual. Configure e execute sob o mesmo usuário do operador; os perfis Windows diferentes precisam de configuração própria.
 4. Inicie a Central e os Agents pelos atalhos. Cada Agent roda na sessão interativa do operador, necessária para F11, captura e entrada remota. Nenhum servidor dedicado é exigido.

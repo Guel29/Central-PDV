@@ -1,5 +1,9 @@
 $ErrorActionPreference = 'Stop'
-$directory = Join-Path $env:LOCALAPPDATA 'SmartPDV\development'
+# Consultar o próprio Python: instalações Microsoft Store redirecionam AppData.
+$python = Join-Path (Split-Path $PSScriptRoot -Parent) '.venv\Scripts\python.exe'
+$resolvedDirectory = & $python -m smartpdv.dev --print-data-directory
+if ($LASTEXITCODE -ne 0) { throw 'Não foi possível localizar os dados físicos do laboratório.' }
+$directory = ($resolvedDirectory | Select-Object -Last 1).Trim()
 $config = Get-Content (Join-Path $directory 'central.json') -Raw | ConvertFrom-Json
 if (!$config.development_only -or $config.host -ne '127.0.0.1') { throw 'Não é um certificado de laboratório loopback.' }
 $certPath = Join-Path $directory 'central.crt'

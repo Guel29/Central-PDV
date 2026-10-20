@@ -18,7 +18,9 @@ O conjunto de ferramentas deste ambiente não oferece publicação de uma porta 
    powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 -TrustLocalCertificate
    ```
 
-O script cria `.venv`, instala as dependências, solicita uma senha de laboratório com pelo menos 12 caracteres e prepara dados em `%LOCALAPPDATA%\SmartPDV\development`, separados dos dados reais. O parâmetro explícito `-TrustLocalCertificate` importa **somente o certificado local gerado pelo laboratório** para o armazenamento de confiança do usuário atual, depois de comparar seu fingerprint SHA-256 com a configuração local. Não desativa verificações TLS. A confiança é necessária para HTTPS e WSS funcionarem normalmente no navegador.
+O script cria `.venv`, instala as dependências, solicita uma senha de laboratório com pelo menos 8 caracteres e prepara dados em `%LOCALAPPDATA%\SmartPDV\development`, separados dos dados reais. O parâmetro explícito `-TrustLocalCertificate` importa **somente o certificado local gerado pelo laboratório** para o armazenamento de confiança do usuário atual, depois de comparar seu fingerprint SHA-256 com a configuração local. Não desativa verificações TLS. A confiança é necessária para HTTPS e WSS funcionarem normalmente no navegador.
+
+Se o Python veio da Microsoft Store, o Windows pode redirecionar `AppData`. O programa resolve o caminho físico antes de configurar as ACLs, e o script de certificado consulta esse mesmo caminho pelo Python. Para vê-lo: `.\.venv\Scripts\python.exe -m smartpdv.dev --print-data-directory`.
 
 O navegador abre na Central local, porta 8443. Use preferencialmente Edge ou Chrome, que utilizam a confiança configurada no Windows. Entre com:
 

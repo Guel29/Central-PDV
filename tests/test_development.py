@@ -76,3 +76,14 @@ def test_dev_refuses_production_config(tmp_path):
     atomic_json(tmp_path/'central.json',{'host':'0.0.0.0'})
     with pytest.raises(ValueError,match='exclusivo'):
         initialize(tmp_path,PASSWORD)
+
+
+def test_print_physical_directory_without_password_prompt(tmp_path,monkeypatch,capsys):
+    import sys
+    import smartpdv.dev as dev
+    def unexpected_prompt(*args):
+        raise AssertionError('Consulta de diretório não pode solicitar senha')
+    monkeypatch.setattr(dev.getpass,'getpass',unexpected_prompt)
+    monkeypatch.setattr(sys,'argv',['smartpdv.dev','--data',str(tmp_path),'--print-data-directory'])
+    dev.main()
+    assert capsys.readouterr().out.strip()==str(tmp_path.resolve())

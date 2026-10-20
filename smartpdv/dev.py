@@ -27,8 +27,8 @@ def initialize(directory, password, port=8443):
         if not config.get('development_only'):
             raise ValueError('Recusado: este diretório não é exclusivo de desenvolvimento')
         return config
-    if len(password) < 12:
-        raise ValueError('Escolha uma senha de desenvolvimento com pelo menos 12 caracteres')
+    if len(password) < 8:
+        raise ValueError('Escolha uma senha de desenvolvimento com pelo menos 8 caracteres')
     fingerprint = create_certificate(directory, '127.0.0.1')
     config = {'development_only': True, 'host':'127.0.0.1', 'hostname':'127.0.0.1',
               'port':port, 'fingerprint':fingerprint, 'pdvs':[],
@@ -197,15 +197,20 @@ class DevelopmentCentral(Central):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path)
+    parser.add_argument('--print-data-directory', action='store_true', help='Informar o caminho físico dos dados já preparados')
     parser.add_argument('--prepare', action='store_true', help='Preparar dados e certificado sem iniciar processos')
     parser.add_argument('--open', action='store_true', help='Abrir o navegador deste computador')
     args = parser.parse_args()
     base = Path(os.environ.get('LOCALAPPDATA',str(Path.home()/'.local'/'share')))
     directory = args.data or base/'SmartPDV'/'development'
+    if args.print_data_directory:
+        print(directory.resolve(strict=True))
+        return
     if (directory/'central.json').exists():
         initialize(directory,'')
     else:
-        initialize(directory,getpass.getpass('Crie a senha do laboratório (mínimo 12 caracteres): '))
+        initialize(directory,getpass.getpass('Crie a senha do laboratório (mínimo 8 caracteres): '))
+    directory = directory.resolve(strict=True)
     if args.prepare:
         print('Laboratório preparado em:',directory)
         return

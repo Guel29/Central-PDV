@@ -31,8 +31,8 @@ def setup_central(directory):
         raise SystemExit('Central já configurada; use add-pdv para cadastrar novos caixas')
     host = ask('IP ou nome LAN da Central (usado no certificado)')
     name = ask('Nome do supervisor administrador')
-    password = ask('Senha do supervisor (mínimo 12 caracteres)', True)
-    if len(password) < 12 or not name:
+    password = ask('Senha do supervisor (mínimo 8 caracteres)', True)
+    if len(password) < 8 or not name:
         raise SystemExit('Nome e senha forte obrigatórios')
     fingerprint = create_certificate(directory, host)
     atomic_json(directory / 'central.json', {'host':'0.0.0.0', 'port':8443, 'hostname':host,
@@ -64,8 +64,8 @@ def add_supervisor(directory):
     name = ask('Nome do supervisor')
     if not name or any(u['name'] == name for u in config['supervisors']):
         raise SystemExit('Nome inválido ou já cadastrado')
-    password = ask('Senha (mínimo 12 caracteres)', True)
-    if len(password) < 12:
+    password = ask('Senha (mínimo 8 caracteres)', True)
+    if len(password) < 8:
         raise SystemExit('Senha curta demais')
     control = ask('Permitir controle remoto? (s/n)').lower() == 's'
     config['supervisors'].append({'name':name, 'password_hash':password_hash(password), 'control':control})
