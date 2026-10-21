@@ -135,11 +135,17 @@ namespace SmartPDV.Diagnostics
             text.AppendLine("A: " + a["location"] + " / " + a["scenario"] + " | B: " + b["location"] + " / " + b["scenario"]);
             text.AppendLine("Observador: " + a["observer_mode"]);
             text.AppendLine("Métrica | A | B");
+            bool raw = Equals(a["observer_mode"], "raw_keyboard");
+            string prefix = raw ? "raw_keyboard_" : "ll_";
             foreach (string counter in new[] { "down", "up", "digit", "keypad_digit", "enter", "tab", "modifier", "focus_changes", "gap_lt5ms", "gap_5to19ms", "gap_20to49ms", "gap_50to99ms", "gap_ge100ms" })
-                text.AppendLine("LL " + counter + " | " + Total(a, "ll_", counter) + " | " + Total(b, "ll_", counter));
-            text.AppendLine("LL injetado down | " + Total(a, "ll_injected", "down") + " | " + Total(b, "ll_injected", "down"));
-            text.AppendLine("Raw Input down | " + Total(a, "raw_keyboard_", "down") + " | " + Total(b, "raw_keyboard_", "down"));
-            text.AppendLine("\r\nAusência de Raw Input e presença de LL injetado mostram diferença observada neste diagnóstico; não demonstram que a VR exige Raw Input. A marca de injeção ausente também não comprova hardware físico.");
+                text.AppendLine(counter + " | " + Total(a, prefix, counter) + " | " + Total(b, prefix, counter));
+            if (raw)
+                text.AppendLine("Raw sem identificação de dispositivo down | " + Total(a, "raw_keyboard_no_device", "down") + " | " + Total(b, "raw_keyboard_no_device", "down"));
+            else
+                text.AppendLine("LL injetado down | " + Total(a, "ll_injected", "down") + " | " + Total(b, "ll_injected", "down"));
+            if (Total(a, prefix, "down") == 0 || Total(b, prefix, "down") == 0)
+                text.AppendLine("ATENÇÃO: um dos resumos não observou pressões. Verifique o modo, a janela de coleta e o observador; não conclua a causa a partir de ausência de eventos.");
+            text.AppendLine("\r\nCada modo observa apenas seu próprio canal. A ausência de marca de injeção não comprova hardware físico. Raw Input presente também não prova origem física nem que a VR receba esse canal.");
             text.AppendLine("Compare quantidade de eventos, Enter/Tab/modificadores, foco e faixas de tempo. Os intervalos são os observados pelos callbacks, não uma medição de barramento USB. Confirme o mecanismo da tela fiscal com a VR.");
             text.AppendLine("\r\nDetalhes A: " + Serializer().Serialize(a));
             text.AppendLine("\r\nDetalhes B: " + Serializer().Serialize(b));

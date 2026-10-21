@@ -118,7 +118,7 @@ namespace SmartPDV.Diagnostics
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK || dialog.FileNames.Length != 2) return;
                 try { string comparison = Summary.Compare(Reports.Read(dialog.FileNames[0]), Reports.Read(dialog.FileNames[1])); report = null; save.Enabled = false; output.Text = comparison; }
-                catch { MessageBox.Show(this, "Os arquivos não são dois resumos válidos desta versão. O conteúdo não foi exibido.", "Comparação indisponível", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                catch { MessageBox.Show(this, "Escolha dois resumos válidos desta versão e do mesmo observador (Teclado ou Raw Input). O conteúdo não foi exibido.", "Comparação indisponível", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
             }
         }
     }

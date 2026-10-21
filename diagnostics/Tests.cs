@@ -45,6 +45,7 @@ namespace SmartPDV.Diagnostics
             for (int i = 0; i < Summary.EventLimit; i++) Check(limited.Add("ll_injected", 48, true, false, true, false, i, IntPtr.Zero), "Bounded events accepted");
             Check(!limited.Add("ll_injected", 49, true, false, true, false, 10001, IntPtr.Zero), "Event bound");
             Summary.Parse(Summary.Serializer().Serialize(limited.Export(30000, "event_limit", 0, 0, 0)));
+            Reject(() => Summary.Compare(a, a.Replace("\"observer_mode\":\"keyboard_hook\"", "\"observer_mode\":\"raw_keyboard\"")), "Do not compare inactive observer channels");
             Reject(() => new Summary("operator-secret", "manual"), "No free-text location");
             Check(!Summary.ValidSource("raw_keyboard_17") && !Summary.ValidSource("raw_keyboard_device-secret"), "Bound anonymous device labels");
             string folder = Path.Combine(Path.GetTempPath(), "smartpdv-diag-test-" + Guid.NewGuid().ToString("N"));
