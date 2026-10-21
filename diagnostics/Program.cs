@@ -15,6 +15,7 @@ namespace SmartPDV.Diagnostics
     {
         readonly ComboBox location = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
         readonly ComboBox scenario = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 235 };
+        readonly ComboBox observer = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 250 };
         readonly Button start = new Button { Text = "Preparar coleta", AutoSize = true };
         readonly Button stop = new Button { Text = "Parar", AutoSize = true, Enabled = false };
         readonly Button save = new Button { Text = "Salvar resumo", AutoSize = true, Enabled = false };
@@ -32,13 +33,14 @@ namespace SmartPDV.Diagnostics
             Text = "Smart Control — diagnóstico de entrada " + Summary.Version;
             Width = 1000; Height = 650; MinimumSize = new Size(700, 450); StartPosition = FormStartPosition.CenterScreen;
             location.Items.AddRange(new object[] { "Central", "PDV" }); location.SelectedIndex = 0;
+            observer.Items.AddRange(new object[] { "Teclado — indicadores e tempo", "Raw Input — origem do dispositivo" }); observer.SelectedIndex = 0;
             scenario.Items.AddRange(new object[] { "Produto — leitor local", "Produto — leitura remota", "Cartão — leitor local", "Cartão — leitura remota", "Digitação de teste" }); scenario.SelectedIndex = 0;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(12) };
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var explanation = new Label { AutoSize = true, MaximumSize = new Size(930, 0), Text = "Use sob supervisão, na mesma sessão Windows do aplicativo. Prepare, volte à tela desejada em 5 segundos e faça uma leitura. Coleta passiva por até 30 segundos: somente categorias, contagens e faixas de tempo. Não digite senhas durante a coleta. Nenhum número de cartão é guardado; salvar o resumo é opcional. Esta ferramenta não modifica a VR nem envia comandos." };
+            var explanation = new Label { AutoSize = true, MaximumSize = new Size(930, 0), Text = "Use sob supervisão, na mesma sessão Windows do aplicativo. Prepare, volte à tela desejada em 5 segundos e faça uma leitura. Escolha o observador e faça coletas separadas. Coleta passiva por até 30 segundos: somente categorias, contagens e faixas de tempo. Não digite senhas durante a coleta. Nenhum número de cartão é guardado; salvar o resumo é opcional. Esta ferramenta não modifica a VR nem envia comandos." };
             var controls = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = true };
-            controls.Controls.AddRange(new Control[] { location, scenario, start, stop, save, compare, clear });
+            controls.Controls.AddRange(new Control[] { location, scenario, observer, start, stop, save, compare, clear });
             status.Text = "Inativo — nenhum observador de teclado instalado.";
             layout.Controls.Add(explanation, 0, 0); layout.Controls.Add(controls, 0, 1); layout.Controls.Add(status, 0, 2); layout.Controls.Add(output, 0, 3);
             Controls.Add(layout);
@@ -53,7 +55,7 @@ namespace SmartPDV.Diagnostics
         void Arm()
         {
             report = null; output.Clear(); save.Enabled = false;
-            start.Enabled = compare.Enabled = clear.Enabled = location.Enabled = scenario.Enabled = false;
+            start.Enabled = compare.Enabled = clear.Enabled = location.Enabled = scenario.Enabled = observer.Enabled = false;
             stop.Enabled = true; arming = true; armedUntil = DateTime.UtcNow.AddSeconds(5);
             status.Text = "Preparando — volte ao aplicativo em 5 segundos."; timer.Start();
         }
@@ -63,7 +65,8 @@ namespace SmartPDV.Diagnostics
             {
                 if (DateTime.UtcNow < armedUntil) return;
                 arming = false;
-                capture = new NativeCapture(new Summary(location.SelectedIndex == 0 ? "central" : "pdv", Summary.Scenarios[scenario.SelectedIndex]));
+                bool raw = observer.SelectedIndex == 1;
+                capture = new NativeCapture(new Summary(location.SelectedIndex == 0 ? "central" : "pdv", Summary.Scenarios[scenario.SelectedIndex], raw ? "raw_keyboard" : "keyboard_hook"), raw);
                 try { capture.Start(Handle); }
                 catch { capture.Dispose(); capture = null; Finish(); status.Text = "Falha ao iniciar os observadores. Nenhuma coleta válida; não conclua a causa a partir disso."; return; }
             }
@@ -84,7 +87,7 @@ namespace SmartPDV.Diagnostics
                 output.Text = failed ? "Falha no observador; resumo descartado." : report; save.Enabled = !failed;
                 if (failed) report = null;
             }
-            start.Enabled = compare.Enabled = clear.Enabled = location.Enabled = scenario.Enabled = true;
+            start.Enabled = compare.Enabled = clear.Enabled = location.Enabled = scenario.Enabled = observer.Enabled = true;
             stop.Enabled = false;
             status.Text = "Inativo — observadores removidos. Resumo somente na memória até salvar ou limpar.";
         }
@@ -102,7 +105,7 @@ namespace SmartPDV.Diagnostics
         {
             if (report == null) return;
             var metadata = Summary.Parse(report);
-            using (var dialog = new SaveFileDialog { Filter = "Resumo sem dígitos (*.json)|*.json", FileName = metadata["location"] + "-" + metadata["scenario"] + ".json", OverwritePrompt = true })
+            using (var dialog = new SaveFileDialog { Filter = "Resumo sem dígitos (*.json)|*.json", FileName = metadata["location"] + "-" + metadata["scenario"] + "-" + metadata["observer_mode"] + ".json", OverwritePrompt = true })
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 try { Reports.SaveNew(dialog.FileName, report); status.Text = "Resumo agregado salvo com acesso restrito à conta Windows e ao SYSTEM."; }

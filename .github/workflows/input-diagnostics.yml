@@ -50,6 +50,16 @@ jobs:
             Write-Host "::error::$details"
             throw 'Diagnostic verification failed'
           }
+      - name: Verify Raw Input separately
+        working-directory: diagnostics
+        shell: pwsh
+        run: |
+          & ./DiagnosticsTests.exe --raw 2>&1 | Tee-Object raw-tests.log
+          if ($LASTEXITCODE -ne 0) {
+            $details = (Get-Content raw-tests.log | Select-Object -Last 15) -join '%0A'
+            Write-Host "::error::$details"
+            throw 'Raw Input verification failed'
+          }
       - name: Package portable diagnostic without modifying Central or Agent
         shell: pwsh
         run: |

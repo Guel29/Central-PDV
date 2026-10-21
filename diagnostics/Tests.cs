@@ -81,11 +81,11 @@ namespace SmartPDV.Diagnostics
             var clock = Stopwatch.StartNew();
             while (clock.ElapsedMilliseconds < milliseconds) { Application.DoEvents(); System.Threading.Thread.Sleep(1); }
         }
-        static void Native()
+        static void Native(bool raw)
         {
-            var summary = new Summary("pdv", "manual");
+            var summary = new Summary("pdv", "manual", raw ? "raw_keyboard" : "keyboard_hook");
             using (var window = new TestWindow { Text = "SmartPDV diagnostic CI inert input target" })
-            using (var capture = new NativeCapture(summary))
+            using (var capture = new NativeCapture(summary, raw))
             using (var timer = new Timer { Interval = 60 })
             {
                 int delivered = 0, index = 0; Exception failure = null;
@@ -115,8 +115,9 @@ namespace SmartPDV.Diagnostics
                     if (failure != null) throw failure;
                     var report = capture.Report(); Summary.Parse(Summary.Serializer().Serialize(report));
                     var streams = (Dictionary<string, object>)report["streams"];
-                    Check(streams.ContainsKey("ll_injected"), "Observe actual injected Windows input: failed=" + capture.ObservationFailed + " delivered=" + delivered + " events=" + summary.Events + " summary=" + Summary.Serializer().Serialize(report));
-                    var stream = (Dictionary<string, object>)streams["ll_injected"];
+                    string source = raw ? "raw_keyboard_no_device" : "ll_injected";
+                    Check(streams.ContainsKey(source), "Observe actual injected Windows input: failed=" + capture.ObservationFailed + " delivered=" + delivered + " events=" + summary.Events + " summary=" + Summary.Serializer().Serialize(report));
+                    var stream = (Dictionary<string, object>)streams[source];
                     Check((int)stream["digit"] == 3 && (int)stream["enter"] == 1 && (int)stream["up"] == 4, "Native observer category counts");
                     Check(delivered >= 4, "Passive observer leaves keyboard input delivered to the target form");
                     Check(!capture.ObservationFailed, "No observer callback failure");
@@ -128,13 +129,13 @@ namespace SmartPDV.Diagnostics
                 }
             }
         }
-        [STAThread] static int Main()
+        [STAThread] static int Main(string[] args)
         {
             try
             {
                 Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
                 Unit(); Console.WriteLine("PASS: content-independent aggregates, strict import schema, numeric burst metadata, event bounds, protected atomic export, no overwrite");
-                Native(); Console.WriteLine("PASS: real Windows low-level observation, injected digit/Enter categories, no collection after stop; no physical USB or VR validation");
+                Native(args.Contains("--raw")); Console.WriteLine("PASS: real Windows observer " + (args.Contains("--raw") ? "Raw Input" : "keyboard hook") + ", injected digit/Enter categories, passive target delivery, no collection after stop; no physical USB or VR validation");
                 using (var form = new DiagnosticWindow()) { form.Show(); Pump(100); form.Close(); }
                 Console.WriteLine("PASS: diagnostic window opens and closes without automatically arming capture");
                 return 0;

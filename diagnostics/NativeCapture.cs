@@ -39,6 +39,7 @@ namespace SmartPDV.Diagnostics
         volatile bool stopping;
         int hookError;
         readonly Summary summary;
+        readonly bool rawMode;
         readonly Stopwatch clock = new Stopwatch();
         readonly Dictionary<IntPtr, int> devices = new Dictionary<IntPtr, int>();
         readonly Hook callback;
@@ -49,19 +50,25 @@ namespace SmartPDV.Diagnostics
         public string StopReason { get; private set; }
         public int Elapsed { get { lock (sync) return (int)Math.Min(30000, clock.ElapsedMilliseconds); } }
         public int Keyboards = -1, Hids = -1, SerialPorts = -1;
-        public NativeCapture(Summary summary) { this.summary = summary; callback = Observe; }
+        public NativeCapture(Summary summary, bool rawMode = false) { this.summary = summary; this.rawMode = rawMode; callback = Observe; }
         public void Start(IntPtr window)
         {
             if (Active || hook != IntPtr.Zero || registered) throw new InvalidOperationException("Capture already active");
             Inventory();
             try
             {
-                // RIDEV_INPUTSINK only: NOLEGACY / suppression / exclusivity are never used.
-                registered = RegisterRawInputDevices(new[] { new RawDevice { Page = 1, Usage = 6, Flags = 0x100, Target = window } }, 1, (uint)Marshal.SizeOf(typeof(RawDevice)));
-                if (!registered) throw new Win32Exception(Marshal.GetLastWin32Error());
-                worker = new Thread(ObserveLoop) { IsBackground = true };
-                worker.SetApartmentState(ApartmentState.STA); worker.Start();
-                if (!ready.WaitOne(5000) || hook == IntPtr.Zero) throw new Win32Exception(hookError);
+                if (rawMode)
+                {
+                    // Separate collection modes keep both channels independently verifiable.
+                    registered = RegisterRawInputDevices(new[] { new RawDevice { Page = 1, Usage = 6, Flags = 0x100, Target = window } }, 1, (uint)Marshal.SizeOf(typeof(RawDevice)));
+                    if (!registered) throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+                else
+                {
+                    worker = new Thread(ObserveLoop) { IsBackground = true };
+                    worker.SetApartmentState(ApartmentState.STA); worker.Start();
+                    if (!ready.WaitOne(5000) || hook == IntPtr.Zero) throw new Win32Exception(hookError);
+                }
                 lock (sync) { StopReason = "manual"; clock.Restart(); Active = true; }
             }
             catch { Dispose(); throw; }

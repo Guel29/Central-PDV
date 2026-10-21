@@ -17,13 +17,14 @@ namespace SmartPDV.Diagnostics
         readonly Dictionary<string, object> streams = new Dictionary<string, object>();
         readonly Dictionary<string, double> lastDown = new Dictionary<string, double>();
         readonly Dictionary<string, IntPtr> lastFocus = new Dictionary<string, IntPtr>();
-        readonly string location, scenario;
+        readonly string location, scenario, observerMode;
         public int Events { get; private set; }
         public const int EventLimit = 10000;
-        public Summary(string location, string scenario)
+        public Summary(string location, string scenario, string observerMode = "keyboard_hook")
         {
             if ((location != "central" && location != "pdv") || !Scenarios.Contains(scenario)) throw new ArgumentException("Invalid diagnostic selection");
-            this.location = location; this.scenario = scenario;
+            if (observerMode != "keyboard_hook" && observerMode != "raw_keyboard") throw new ArgumentException("Invalid observer mode");
+            this.location = location; this.scenario = scenario; this.observerMode = observerMode;
         }
         public static string Category(uint key)
         {
@@ -83,7 +84,7 @@ namespace SmartPDV.Diagnostics
         public Dictionary<string, object> Export(int elapsed, string reason, int keyboards, int hids, int serialPorts)
         {
             return new Dictionary<string, object> {
-                { "schema", Schema }, { "tool_version", Version }, { "location", location }, { "scenario", scenario },
+                { "schema", Schema }, { "tool_version", Version }, { "location", location }, { "scenario", scenario }, { "observer_mode", observerMode },
                 { "elapsed_ms", Math.Min(30000, Math.Max(0, elapsed)) }, { "stop_reason", reason },
                 { "inventory", new Dictionary<string, object> { { "raw_keyboard_devices", keyboards }, { "raw_hid_devices", hids }, { "serial_port_count", serialPorts } } },
                 { "streams", streams.ToDictionary(p => p.Key, p => (object)new Dictionary<string, object>((Dictionary<string, object>)p.Value)) }
@@ -99,8 +100,9 @@ namespace SmartPDV.Diagnostics
             if (text.Length > 65536) throw new ArgumentException("Summary too large");
             var d = Serializer().DeserializeObject(text) as Dictionary<string, object>;
             if (d == null) throw new ArgumentException("Invalid summary");
-            Exact(d, new[] { "schema", "tool_version", "location", "scenario", "elapsed_ms", "stop_reason", "inventory", "streams" });
+            Exact(d, new[] { "schema", "tool_version", "location", "scenario", "observer_mode", "elapsed_ms", "stop_reason", "inventory", "streams" });
             if (!Schema.Equals(d["schema"]) || !Version.Equals(d["tool_version"]) || !(new object[] { "central", "pdv" }).Contains(d["location"]) || !Scenarios.Contains(d["scenario"] as string) || !(new object[] { "manual", "timeout", "event_limit" }).Contains(d["stop_reason"])) throw new ArgumentException("Invalid summary metadata");
+            if (!(new object[] { "keyboard_hook", "raw_keyboard" }).Contains(d["observer_mode"])) throw new ArgumentException("Invalid observer mode");
             Integer(d["elapsed_ms"], 0, 30000);
             var inventory = d["inventory"] as Dictionary<string, object>;
             if (inventory == null) throw new ArgumentException("Invalid inventory");
@@ -128,8 +130,10 @@ namespace SmartPDV.Diagnostics
         public static string Compare(string first, string second)
         {
             var a = Parse(first); var b = Parse(second);
+            if (!Equals(a["observer_mode"], b["observer_mode"])) throw new ArgumentException("Compare the same observer mode");
             var text = new StringBuilder("Comparação agregada — não compara dígitos nem comprova o mecanismo da VR.\r\n");
             text.AppendLine("A: " + a["location"] + " / " + a["scenario"] + " | B: " + b["location"] + " / " + b["scenario"]);
+            text.AppendLine("Observador: " + a["observer_mode"]);
             text.AppendLine("Métrica | A | B");
             foreach (string counter in new[] { "down", "up", "digit", "keypad_digit", "enter", "tab", "modifier", "focus_changes", "gap_lt5ms", "gap_5to19ms", "gap_20to49ms", "gap_50to99ms", "gap_ge100ms" })
                 text.AppendLine("LL " + counter + " | " + Total(a, "ll_", counter) + " | " + Total(b, "ll_", counter));

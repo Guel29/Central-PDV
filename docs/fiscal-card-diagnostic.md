@@ -35,7 +35,7 @@ Executável portátil .NET Framework 4.8 x86. Projetado para Windows 7 SP1/.NET 
 
 Ao abrir, não instala observadores. **Preparar coleta** dá cinco segundos para voltar ao aplicativo; depois observa por até 30 segundos ou 10.000 eventos. **Parar**, fechar a janela e o término automático removem os observadores. O início depende de ação explícita e não existe autostart.
 
-Usa um hook `WH_KEYBOARD_LL` que sempre passa os eventos adiante e `RegisterRawInputDevices` para teclado com `RIDEV_INPUTSINK`, sem `NOLEGACY`, exclusividade ou bloqueio. A inscrição é no processo separado da ferramenta; ela não altera a inscrição Raw Input da VR. A coleta ocorre na sessão/desktop Windows interativa atual; não observa desktop seguro/UAC nem todas as sessões do computador.
+Escolha um dos dois observadores: **Teclado — indicadores e tempo** usa um hook `WH_KEYBOARD_LL` que sempre passa os eventos adiante; **Raw Input — origem do dispositivo** usa `RegisterRawInputDevices` para teclado com `RIDEV_INPUTSINK`, sem `NOLEGACY`, exclusividade ou bloqueio. Faça coletas separadas para cada observador e compare apenas arquivos do mesmo modo. A validação conjunta inicial não observou o canal de hook no CI; por isso não usamos uma coleta conjunta como diagnóstico válido. Isso é uma limitação da instrumentação, não evidência sobre a VR. A inscrição é no processo separado da ferramenta; ela não altera a inscrição Raw Input da VR. A coleta ocorre na sessão/desktop Windows interativa atual; não observa desktop seguro/UAC nem todas as sessões do computador.
 
 Retém somente:
 
@@ -56,14 +56,15 @@ Execute em uma janela de manutenção supervisionada, com o mesmo cartão autori
 
 1. Na Central, confirme o Agent conectado **0.1.6** no PDV Win7. Abra um atendimento pelo fluxo existente. Não há atualização de teclado nesta ferramenta.
 2. Abra `SmartPDV-Input-Diagnostic.exe` na mesma conta/sessão Windows do aplicativo a observar. No PDV, a ferramenta pode ser aberta pelo atendimento remoto autorizado. Ela fica visível e não se instala em segundo plano.
-3. Selecione **PDV** e **Cartão — leitor local**. Clique **Preparar coleta**, volte à tela fiscal em cinco segundos, aguarde o início e passe uma única vez o cartão pelo leitor conectado ao PDV. Confirme se a VR autorizou. Não digite mais nada; aguarde o término automático e salve como um arquivo novo. O resultado da VR deve ser anotado separadamente, apenas como “aceito” ou “recusado”.
+3. Selecione **PDV**, **Cartão — leitor local** e **Teclado — indicadores e tempo**. Clique **Preparar coleta**, volte à tela fiscal em cinco segundos, aguarde o início e passe uma única vez o cartão pelo leitor conectado ao PDV. Confirme se a VR autorizou. Não digite mais nada; aguarde o término automático e salve como um arquivo novo. O resultado da VR deve ser anotado separadamente, apenas como “aceito” ou “recusado”.
 4. Repita com **Produto — leitor local** em uma operação de teste apropriada. Essa é a referência de venda; o diagnóstico não cria nem cancela vendas.
 5. Para a comparação remota, prepare a coleta no PDV com **PDV / Cartão — leitura remota**. Prepare também na Central com **Central / Cartão — leitura remota**. Volte à imagem remota e à tela fiscal antes de passar o cartão; faça a leitura uma vez quando ambas as coletas estiverem ativas. Se a preparação demorar, pare e refaça; é necessário haver sobreposição dos dois períodos de 30 segundos.
 6. O leitor usado nessa etapa fica na **Central**. Confirme que a imagem remota tem foco e que o campo correspondente da VR foi selecionado pelo mouse remoto. Aguarde o fim das coletas e salve os dois resumos. Não altere velocidade, modo USB, prefixo ou sufixo do LS2208 entre o teste aceito e o recusado.
 7. Repita a etapa remota com **Produto — leitura remota**, usando um código de produto de teste permitido. Registre apenas se a VR recebeu a leitura normalmente.
 8. Se necessário, faça uma coleta **Digitação de teste** usando exclusivamente um número fictício em um Bloco de Notas vazio, para verificar a instrumentação. Não substitua o teste fiscal por isso.
 9. Use **Comparar resumos** para escolher primeiro o resumo do PDV com cartão local aceito e o resumo do PDV com cartão remoto recusado. Depois compare Central e PDV durante a mesma leitura remota. Os cenários e locais estão dentro dos JSONs; não confie apenas nos nomes dos arquivos.
-10. Compartilhe os resumos e os resultados “aceito/recusado”, a versão da VR e o modelo/modo de interface do leitor. Não envie número do cartão, hash, credenciais ou telas que os exibam.
+10. Repita as coletas local/remota escolhendo **Raw Input — origem do dispositivo**. Os dois canais são observados em leituras separadas; não interprete a falta de um canal desativado como ausência de entrada. Feche e reabra a ferramenta entre os modos.
+11. Compartilhe os resumos e os resultados “aceito/recusado”, a versão da VR e o modelo/modo de interface do leitor. Não envie número do cartão, hash, credenciais ou telas que os exibam.
 
 Se `streams` estiver vazio, o observador falhar, houver várias leituras ou muita digitação alheia, repita a coleta; não conclua a causa. Se o sistema ficar lento, clique **Parar** ou feche a ferramenta. O Agent e o atendimento continuam pelo mecanismo anterior.
 
