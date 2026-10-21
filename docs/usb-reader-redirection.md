@@ -19,7 +19,11 @@ O computador onde está fisicamente conectado o leitor é o servidor USB; o PDV 
 
 Fontes README consultadas em 21/10/2026. A disponibilidade de código ou de uma assinatura não comprova suporte ao LS2208/VR. Também será necessário confirmar autenticação e criptografia do transporte escolhido; não presumir que USB/IP básico as forneça.
 
-A escolha pendente é se a integração pode depender de um componente com licença comercial ou precisa ser totalmente gratuita. Não foi feita compra, download/instalação de driver nem desativação de proteções Windows.
+A última resposta do usuário exige uma solução **totalmente gratuita**, substituindo a resposta anterior que aceitava componente licenciado. Não foi feita compra, download/instalação de driver nem desativação de proteções Windows. Não usar prazo de avaliação como comprovação de gratuidade permanente ou de licença para uso no supermercado.
+
+A limitação pendente é o Windows do PDV: as alternativas gratuitas atuais confirmadas acima atendem Windows 10/11, enquanto o ramo antigo para Windows 7 documenta assinatura de teste. Ainda não foi confirmado um cliente gratuito com driver assinado para Windows 7. Foi solicitada a confirmação de que o caixa precisa permanecer no Windows 7 ou pode usar Windows 10/11. A página oficial de termos do servidor VirtualHere foi tentada e recusada pela política de rede deste ambiente (HTTP 403); sua gratuidade e compatibilidade não foram confirmadas, e ele não foi selecionado.
+
+Mesmo em Windows 10/11, será necessário implementar o transporte autenticado/criptografado e a concessão do leitor por atendimento. Encontrar um driver gratuito não significa que o recurso já esteja pronto no Smart Control.
 
 ## Integração exigida
 
