@@ -62,3 +62,9 @@ Agent Windows 10/11 x64 1.0.1 e Agent legado 0.1.1 usam SendInput com scan codes
 ### F11 global na Central (1.0.2)
 
 Com o executavel Central em execucao, F11 restaura e traz a janela SmartCentral para frente a partir de outros aplicativos da mesma sessao Windows. Edge/Chrome abrem o dashboard em janela de aplicativo dedicada, identificavel mesmo com outras abas abertas. Se a janela foi fechada, F11 abre novamente; a Central precisa continuar em execucao. O Agent continua usando F11 para chamados apenas no computador PDV. Na Central, F11 passa a ser o atalho global, substituindo o F11 de tela cheia do navegador. Se outro programa ja reservou F11, a Central informa o conflito; nenhum atalho de outro programa e removido. Nao atua na tela bloqueada ou area segura UAC. Em execucao de testes `--no-browser`, nao registra o atalho global.
+
+### Compatibilidade de entrada e diagnostico (Central/Agent 1.0.3, Agent legado 0.1.2)
+
+Cada tecla passa a ter pressao minima de 20 ms: evita reduzir uma leitura rapida a pulsos quase simultaneos de pressionar/soltar. `keyboard_min_press_ms` no JSON do Agent permite de 0 a 100 ms; ausencia conserva 20 ms. O numero de teclas e o Enter original sao preservados. O intervalo nao muda o dispositivo de origem da entrada e nao garante compatibilidade com Raw Input ou com o VRPDV.
+
+Durante um atendimento, a Central atualizada mostra o resultado retornado pelo Windows: entrada aceita ou bloqueada, com o codigo de erro quando fornecido. **Aceite pelo Windows nao comprova que o VRPDV processou o codigo.** Nenhum EAN, caractere, tecla ou conteudo de tela e registrado nesse diagnostico; somente o ultimo resultado transita em memoria para o supervisor que possui a sessao. A recusa de entrada nao derruba o monitoramento. O F11 global da Central permanece ativo. Validacao no VRPDV/LS2208 precisa ser feita no caixa.

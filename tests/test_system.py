@@ -83,6 +83,11 @@ def test_tls_auth_and_full_workflow(tmp_path):
                 event={'kind':'mouse','action':'move','x':.5,'y':.4,'button':0}
                 await dashboard.send_json({'type':'input','number':1,'event':event})
                 assert await agent.receive_json() == {'type':'input','event':event}
+                await agent.send_json({'type':'input_status','accepted':False,'error_code':5})
+                assert await dashboard.receive_json() == {'type':'input_status','number':1,'accepted':False,'error_code':5}
+                await agent.send_json({'type':'input_status','accepted':'untrusted','error_code':5})
+                await agent.send_json({'type':'input_status','accepted':True,'error_code':0})
+                assert await dashboard.receive_json() == {'type':'input_status','number':1,'accepted':True,'error_code':0}
                 await dashboard.send_json({'type':'end','number':1,'result':'Liberado'})
                 assert await agent.receive_json() == {'type':'session','active':False}
                 await state(dashboard,lambda s:not s['active'] and not s['pending'])
@@ -273,3 +278,40 @@ def test_initial_setup_and_pairing(tmp_path, monkeypatch):
     assert agent_config['number']==4
     with pytest.raises(SystemExit):
         cli.setup_central(central_dir)
+
+
+def test_input_rejection_report_keeps_remote_session_connected(tmp_path):
+    class RejectingDesktop(FakeDesktop):
+        def input(self,event):
+            raise OSError(5, 'Test-only access denied')
+    async def scenario():
+        fingerprint=prepare(tmp_path)
+        central,runner,port=await start(tmp_path)
+        atomic_json(tmp_path/'agent.json',{'number':1,'computer_id':'test-device','central':'127.0.0.1',
+                    'port':port,'fingerprint':fingerprint,'token':protect(TOKEN),'f11':False})
+        agent=Agent(tmp_path/'agent.json',RejectingDesktop())
+        task=asyncio.create_task(agent.run())
+        try:
+            await until(lambda: central.state[1]['online'])
+            async with ClientSession() as client:
+                url=f'https://127.0.0.1:{port}'
+                pin=Fingerprint(bytes.fromhex(fingerprint))
+                headers=await local_session(client,url,pin)
+                async with client.ws_connect(url+'/dashboard',ssl=pin,headers=headers) as dashboard:
+                    await dashboard.send_json({'type':'start','number':1})
+                    await state(dashboard,lambda s:s['active'])
+                    await dashboard.send_json({'type':'input','number':1,'event':{'kind':'key','key':'1','action':'down'}})
+                    async def report():
+                        while True:
+                            data=await dashboard.receive_json()
+                            if data['type']=='input_status': return data
+                    assert await asyncio.wait_for(report(),5)=={'type':'input_status','number':1,'accepted':False,'error_code':5}
+                    assert central.state[1]['online'] and central.state[1]['active']
+                    await dashboard.send_json({'type':'end','number':1})
+                    await state(dashboard,lambda s:not s['active'])
+                    assert central.state[1]['online']
+        finally:
+            task.cancel()
+            await asyncio.gather(task,return_exceptions=True)
+            await runner.cleanup()
+    asyncio.run(scenario())

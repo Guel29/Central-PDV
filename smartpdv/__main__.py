@@ -130,7 +130,7 @@ def main():
         from .agent import Agent
         from .windows import Desktop
         config = load_json(directory / 'agent.json')
-        asyncio.run(Agent(directory / 'agent.json', Desktop(config['f11'])).run())
+        asyncio.run(Agent(directory / 'agent.json', Desktop(config['f11'], config.get('keyboard_min_press_ms', 20))).run())
 
 
 if __name__ == '__main__':

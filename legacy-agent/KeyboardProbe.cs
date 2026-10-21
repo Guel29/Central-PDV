@@ -1,6 +1,7 @@
 // CI only: observe actual Windows keyboard injection with a low-level hook.
 // Never included in the installed Agent; never records operator input.
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -18,10 +19,11 @@ namespace SmartPDV.Legacy
         [STAThread] static int Main()
         {
             var events = new List<KeyboardData>();
+            var times = new List<long>();
             Hook callback = delegate(int code, IntPtr message, IntPtr data) {
                 if (code >= 0) {
                     var item = (KeyboardData)Marshal.PtrToStructure(data, typeof(KeyboardData));
-                    if ((item.Flags & 16) != 0) { events.Add(item); return new IntPtr(1); }
+                    if ((item.Flags & 16) != 0) { events.Add(item); times.Add(Stopwatch.GetTimestamp()); return new IntPtr(1); }
                 }
                 return CallNextHookEx(IntPtr.Zero, code, message, data);
             };
@@ -43,6 +45,8 @@ namespace SmartPDV.Legacy
                 for(int i=0;i<keys.Length;i++)
                 {
                     var down=events[i*2]; var up=events[i*2+1];
+                    if ((times[i*2+1]-times[i*2])*1000.0/Stopwatch.Frequency < 15)
+                        throw new Exception("Keyboard press too short at "+i);
                     if(down.Key!=keys[i] || up.Key!=keys[i] || down.Scan==0 || down.Scan!=up.Scan ||
                        (down.Flags&128)!=0 || (up.Flags&128)==0)
                         throw new Exception("Invalid keyboard down/up at "+i);

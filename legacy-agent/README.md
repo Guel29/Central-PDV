@@ -28,3 +28,7 @@ A workflow `Windows 7 Agent` compila, testa o protocolo TLS/pareamento/chamado/s
 ### Atualizacao 0.1.1
 
 O Agent usa `SendInput` com scan codes Windows para o teclado remoto, incluindo o sinalizador de teclas estendidas e liberacao correspondente das teclas ao encerrar. Isso melhora a compatibilidade de entrada sem instalar drivers nem mudar o protocolo da Central. O instalador preserva `agent.json`, numero do caixa e pareamento. Encerre o Agent antes de atualizar e inicie novamente depois. Um teste Windows observa os eventos reais por hook (somente no executavel de testes) para validar digitos EAN, Enter e teclas estendidas. O VRPDV e o leitor fisico LS2208 nao estao disponiveis no CI; o resultado no aplicativo deve ser confirmado no caixa. Essa entrada continua sendo sintetica, sem redirecionamento USB e sem contornar restricoes de privilegio do Windows.
+
+### Atualizacao 0.1.2
+
+Pressao minima de tecla de 20 ms, ajustavel no JSON com `keyboard_min_press_ms` entre 0 e 100. A Central 1.0.3 mostra se o Windows aceitou ou recusou a entrada, sem coletar o codigo EAN ou as teclas. A recusa nao encerra a conexao. Isso permite diferenciar bloqueio do Windows de entrada aceita sem resposta do aplicativo. Ainda e necessario testar o VRPDV real; nao foi homologado por estes testes.

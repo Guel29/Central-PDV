@@ -1,5 +1,6 @@
 """Entrada nativa por scan codes; sem redirecionamento de dispositivos."""
 import ctypes as c
+import time
 
 
 class MouseInput(c.Structure):
@@ -21,7 +22,11 @@ class Input(c.Structure):
 
 
 class ScanKeyboard:
-    def __init__(self):
+    def __init__(self, minimum_press_ms=20):
+        if type(minimum_press_ms) is not int or not 0 <= minimum_press_ms <= 100:
+            raise ValueError('keyboard_min_press_ms deve estar entre 0 e 100')
+        self.minimum_press = minimum_press_ms / 1000
+        self.pressed = {}
         self.user = c.WinDLL('user32', use_last_error=True)
         self.user.SendInput.argtypes = (c.c_uint32, c.POINTER(Input), c.c_int)
         self.user.SendInput.restype = c.c_uint32
@@ -53,7 +58,15 @@ class ScanKeyboard:
         return scan
 
     def send(self, scan, down):
+        if not down and scan in self.pressed:
+            remaining = self.minimum_press - (time.monotonic() - self.pressed[scan])
+            if remaining > 0:
+                time.sleep(remaining)
         flags = 0x0008 | (1 if scan & 0xff00 == 0xe000 else 0) | (0 if down else 2)
         packet = Input(type=1, data=InputUnion(keyboard=KeyboardInput(scan=scan & 255, flags=flags)))
         if self.user.SendInput(1, c.byref(packet), c.sizeof(Input)) != 1:
             raise OSError(c.get_last_error(), 'Windows recusou a entrada remota; verifique as permissoes do Agent e do aplicativo')
+        if down:
+            self.pressed.setdefault(scan, time.monotonic())
+        else:
+            self.pressed.pop(scan, None)

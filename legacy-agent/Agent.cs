@@ -64,7 +64,7 @@ namespace SmartPDV.Legacy
     {
         public int Number;
         public string ComputerId, Host, Fingerprint, Token;
-        public int Port;
+        public int Port, KeyboardMinPress;
         public bool F11;
         public static Configuration Parse(Dictionary<string, object> value, bool pairing)
         {
@@ -74,6 +74,8 @@ namespace SmartPDV.Legacy
             c.Host = Convert.ToString(value["central"], CultureInfo.InvariantCulture);
             c.Port = Convert.ToInt32(value["port"], CultureInfo.InvariantCulture);
             c.Fingerprint = Convert.ToString(value["fingerprint"], CultureInfo.InvariantCulture);
+            c.KeyboardMinPress = value.ContainsKey("keyboard_min_press_ms") ? Convert.ToInt32(value["keyboard_min_press_ms"], CultureInfo.InvariantCulture) : 20;
+            if (c.KeyboardMinPress < 0 || c.KeyboardMinPress > 100) throw new InvalidDataException("keyboard_min_press_ms deve estar entre 0 e 100.");
             c.F11 = !value.ContainsKey("f11") || Convert.ToBoolean(value["f11"], CultureInfo.InvariantCulture);
             if (pairing) c.Token = Convert.ToString(value["token"], CultureInfo.InvariantCulture);
             else
@@ -279,26 +281,26 @@ namespace SmartPDV.Legacy
                 }
             }
         }
-        public void Input(Dictionary<string, object> e)
+        public bool Input(Dictionary<string, object> e)
         {
             lock (inputLock)
             {
                 string kind = (string)e["kind"];
-                if (kind == "release") { Release(); return; }
+                if (kind == "release") { Release(); return false; }
                 if (kind == "wheel")
                 {
-                    int delta = Convert.ToInt32(e["delta"]); if (delta != -120 && delta != 120) return;
-                    mouse_event(0x0800, 0, 0, unchecked((uint)delta), UIntPtr.Zero); return;
+                    int delta = Convert.ToInt32(e["delta"]); if (delta != -120 && delta != 120) return false;
+                    mouse_event(0x0800, 0, 0, unchecked((uint)delta), UIntPtr.Zero); return false;
                 }
                 string action = (string)e["action"];
                 if (kind == "mouse")
                 {
                     double x = Convert.ToDouble(e["x"], CultureInfo.InvariantCulture), y = Convert.ToDouble(e["y"], CultureInfo.InvariantCulture);
-                    if (double.IsNaN(x) || double.IsNaN(y) || x < 0 || x > 1 || y < 0 || y > 1) return;
+                    if (double.IsNaN(x) || double.IsNaN(y) || x < 0 || x > 1 || y < 0 || y > 1) return false;
                     Rectangle bounds = Screen.PrimaryScreen.Bounds;
                     SetCursorPos(bounds.Left + (int)Math.Round(x * (bounds.Width - 1)), bounds.Top + (int)Math.Round(y * (bounds.Height - 1)));
                     int button = Convert.ToInt32(e["button"]);
-                    if ((button != 0 && button != 2) || action != "down" && action != "up") return;
+                    if ((button != 0 && button != 2) || action != "down" && action != "up") return false;
                     bool down = action == "down";
                     mouse_event(button == 0 ? (down ? 2u : 4u) : (down ? 8u : 16u), 0, 0, 0, UIntPtr.Zero);
                     if (down) buttons.Add(button); else buttons.Remove(button);
@@ -309,16 +311,18 @@ namespace SmartPDV.Legacy
                     if (!special.TryGetValue(key, out vk))
                     {
                         if (key.StartsWith("F", StringComparison.Ordinal) && int.TryParse(key.Substring(1), out f) && f >= 1 && f <= 12) vk = (byte)(111 + f);
-                        else if (key.Length == 1) { short code = VkKeyScan(key[0]); if (code == -1) return; vk = (byte)(code & 255); }
-                        else return;
+                        else if (key.Length == 1) { short code = VkKeyScan(key[0]); if (code == -1) return false; vk = (byte)(code & 255); }
+                        else return false;
                     }
                     ushort scan;
                     if (!keys.TryGetValue(vk, out scan)) scan = ScanKeyboard.Resolve(vk);
                     bool down = action == "down";
                     ScanKeyboard.Send(scan, down);
                     if (down) keys[vk] = scan; else keys.Remove(vk);
+                    return true;
                 }
             }
+            return false;
         }
         public void Release()
         {
@@ -382,15 +386,32 @@ namespace SmartPDV.Legacy
                         {
                             try
                             {
+                                bool? lastAccepted = null; int lastCode = 0;
+                                DateTime lastReport = DateTime.MinValue;
                                 while (true)
                                 {
                                     var message = JsonFiles.Serializer().Deserialize<Dictionary<string, object>>(connection.Receive());
                                     string type = (string)message["type"];
                                     if (type == "session")
                                     {
+                                        lastAccepted = null; lastReport = DateTime.MinValue;
                                         active = (bool)message["active"]; desktop.Release(); if (active) pending = false;
                                     }
-                                    else if (type == "input" && active) desktop.Input((Dictionary<string, object>)message["event"]);
+                                    else if (type == "input" && active)
+                                    {
+                                        bool? accepted = null; int error = 0;
+                                        try { if (desktop.Input((Dictionary<string, object>)message["event"])) accepted = true; }
+                                        catch (System.ComponentModel.Win32Exception ex)
+                                        {
+                                            accepted = false; error = ex.NativeErrorCode;
+                                            if (error < 0 || error > 65535) error = 0;
+                                        }
+                                        if (accepted.HasValue && (lastAccepted != accepted || lastCode != error || (DateTime.UtcNow-lastReport).TotalSeconds >= 2))
+                                        {
+                                            connection.Send(new { type = "input_status", accepted = accepted.Value, error_code = error });
+                                            lastAccepted = accepted; lastCode = error; lastReport = DateTime.UtcNow;
+                                        }
+                                    }
                                 }
                             }
                             catch (Exception) { }
@@ -498,6 +519,7 @@ namespace SmartPDV.Legacy
                     Setup(directory); if (!File.Exists(path)) return 0;
                 }
                 var config = Configuration.Parse(JsonFiles.Load(path), false);
+                ScanKeyboard.MinimumPressMilliseconds = config.KeyboardMinPress;
                 if (probe) { Probe(config, directory); return 0; }
                 bool created;
                 using (var mutex = new Mutex(true, "Local\\SmartPDV-Agent-Win7-" + WindowsIdentity.GetCurrent().User.Value, out created))

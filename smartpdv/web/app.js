@@ -54,6 +54,7 @@ function openRemote(number) {
 function showRemote(number) {
   selected=number;
   $('remote-title').textContent=`PDV ${number} · Atendimento ativo`;
+  $('input-status').textContent='Entrada remota: aguardando teclado';
   $('switch').replaceChildren(...pdvs.filter(p=>p.online).map(p=>new Option(`PDV ${p.number}`,p.number,false,p.number===number)));
   const p=pdvs.find(p=>p.number===number);
   if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
@@ -75,6 +76,11 @@ function connect() {
       $('cards').style.setProperty('--columns',Math.max(1,Math.min(8,data.dashboard.columns||4)));render();}
     else if(data.type==='opened'){showRemote(data.number);opening=null;}
     else if(data.type==='error'){opening=null;alert(data.message);}
+    else if(data.type==='input_status' && selected===data.number){
+      $('input-status').textContent=data.accepted
+        ? 'Windows aceitou a entrada · confirme o resultado no aplicativo'
+        : `Windows bloqueou a entrada (código ${data.error_code}) · verifique as permissões do Agent`;
+    }
     else if(data.type==='frame'){
       const p=pdvs.find(p=>p.number===data.number);if(!p)return;
       p.thumbnail=data.jpeg;const src='data:image/jpeg;base64,'+data.jpeg;

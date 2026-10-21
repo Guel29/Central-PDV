@@ -40,6 +40,8 @@ class Agent:
                             delay = 1
                             if self.pending:
                                 await ws.send_json({'type':'request'})
+                            last_input_status = None
+                            last_input_report = 0
                             sender = asyncio.create_task(self.send(ws))
                             try:
                                 async for message in ws:
@@ -47,12 +49,22 @@ class Agent:
                                         continue
                                     data = json.loads(message.data)
                                     if data['type'] == 'session':
+                                        last_input_status, last_input_report = None, 0
                                         self.active = bool(data['active'])
                                         self.desktop.release()
                                         if self.active:
                                             self.pending = False
                                     elif data['type'] == 'input' and self.active:
-                                        self.desktop.input(data['event'])
+                                        status = None
+                                        try:
+                                            if self.desktop.input(data['event']) is True:
+                                                status = (True, 0)
+                                        except OSError as exc:
+                                            code = getattr(exc, 'winerror', None) or exc.errno or 0
+                                            status = (False, code if type(code) is int and 0 <= code <= 65535 else 0)
+                                        if status is not None and (status != last_input_status or time.monotonic()-last_input_report >= 2):
+                                            await ws.send_json({'type':'input_status','accepted':status[0],'error_code':status[1]})
+                                            last_input_status, last_input_report = status, time.monotonic()
                             finally:
                                 sender.cancel()
                                 await asyncio.gather(sender, return_exceptions=True)

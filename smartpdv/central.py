@@ -249,6 +249,13 @@ class Central:
                 if data['type'] == 'request' and not s['pending']:
                     s.update(pending=True, requested_at=now())
                     await self.publish()
+                elif data['type'] == 'input_status' and s['active']:
+                    accepted, code = data.get('accepted'), data.get('error_code')
+                    if type(accepted) is bool and type(code) is int and 0 <= code <= 65535:
+                        # Live result only, sent solely to the owner. Never log keys or input text.
+                        for viewer in list(self.viewers):
+                            if id(viewer) == s['owner'] and not viewer.closed:
+                                await viewer.send_json({'type':'input_status','number':number,'accepted':accepted,'error_code':code})
                 elif data['type'] == 'frame' and time.monotonic() - last_frame >= (0.15 if s['active'] else 1):
                     frame = data['jpeg']
                     if isinstance(frame, str) and len(frame) < 1400000:

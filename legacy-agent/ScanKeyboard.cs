@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
@@ -7,6 +10,9 @@ namespace SmartPDV.Legacy
     // INPUT must contain the full native union on both x86 (28) and x64 (40).
     static class ScanKeyboard
     {
+        public static int MinimumPressMilliseconds = 20;
+        static readonly object Sync = new object();
+        static readonly Dictionary<ushort,long> Pressed = new Dictionary<ushort,long>();
         [StructLayout(LayoutKind.Sequential)] struct MouseInput
         {
             public int X, Y; public uint Data, Flags, Time; public UIntPtr Extra;
@@ -48,6 +54,14 @@ namespace SmartPDV.Legacy
         }
         public static void Send(ushort scan, bool down)
         {
+            lock (Sync)
+            {
+            long started;
+            if (!down && Pressed.TryGetValue(scan, out started))
+            {
+                double remaining = MinimumPressMilliseconds - (Stopwatch.GetTimestamp()-started)*1000.0/Stopwatch.Frequency;
+                if (remaining > 0) Thread.Sleep((int)Math.Ceiling(remaining));
+            }
             uint flags = 0x0008u; // KEYEVENTF_SCANCODE, wVk must be zero.
             if ((scan & 0xff00) == 0xe000) flags |= 0x0001u;
             if (!down) flags |= 0x0002u;
@@ -55,6 +69,9 @@ namespace SmartPDV.Legacy
                 Keyboard = new KeyboardInput { Scan = (ushort)(scan & 0xff), Flags = flags } } };
             if (SendInput(1, new Input[] { input }, Marshal.SizeOf(typeof(Input))) != 1)
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows nao aceitou a entrada remota. Verifique as permissoes do Agent e do aplicativo.");
+            if (down) { if (!Pressed.ContainsKey(scan)) Pressed[scan] = Stopwatch.GetTimestamp(); }
+            else Pressed.Remove(scan);
+            }
         }
     }
 }

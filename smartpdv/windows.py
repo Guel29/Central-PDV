@@ -6,10 +6,10 @@ from .windows_keyboard import ScanKeyboard
 
 
 class Desktop:
-    def __init__(self, hotkey=True):
+    def __init__(self, hotkey=True, minimum_press_ms=20):
         self.user = ctypes.windll.user32
         self.user.SetProcessDPIAware()
-        self.keyboard = ScanKeyboard()
+        self.keyboard = ScanKeyboard(minimum_press_ms)
         self.held_keys = {}
         self.held_buttons = set()
         self.hotkey = hotkey
@@ -64,6 +64,7 @@ class Desktop:
                     self.held_keys[vk] = scan
                 else:
                     self.held_keys.pop(vk, None)
+                return True
 
     def release(self):
         for scan in self.held_keys.values():
