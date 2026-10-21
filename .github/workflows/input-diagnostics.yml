@@ -60,6 +60,21 @@ jobs:
             Write-Host "::error::$details"
             throw 'Raw Input verification failed'
           }
+      - name: Test actual distributed GUI through its controls
+        working-directory: diagnostics
+        shell: pwsh
+        run: |
+          $wpf = "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/WPF"
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:UiProbe.exe /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/reference:$wpf/UIAutomationClient.dll" "/reference:$wpf/UIAutomationTypes.dll" "/reference:$wpf/WindowsBase.dll" UiProbe.cs 2>&1 | Tee-Object ui-compile.log
+          if ($LASTEXITCODE -ne 0) { throw 'GUI probe compilation failed' }
+          foreach ($mode in @('keyboard', 'raw')) {
+            & ./UiProbe.exe bin/Release/SmartPDV-Input-Diagnostic.exe "--$mode" 2>&1 | Tee-Object "ui-$mode.log"
+            if ($LASTEXITCODE -ne 0) {
+              $details = (Get-Content "ui-$mode.log" | Select-Object -Last 15) -join '%0A'
+              Write-Host "::error::$details"
+              throw "Distributed GUI failed in $mode mode"
+            }
+          }
       - name: Package portable diagnostic without modifying Central or Agent
         shell: pwsh
         run: |
