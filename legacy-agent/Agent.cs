@@ -324,7 +324,12 @@ namespace SmartPDV.Legacy
         {
             lock (inputLock)
             {
-                foreach (ushort scan in keys.Values) ScanKeyboard.Send(scan, false);
+                foreach (ushort scan in keys.Values)
+                {
+                    // A blocked/elevated desktop must not kill the reconnect worker during cleanup.
+                    try { ScanKeyboard.Send(scan, false); }
+                    catch (System.ComponentModel.Win32Exception) { }
+                }
                 foreach (int button in buttons) mouse_event(button == 0 ? 4u : 16u, 0, 0, 0, UIntPtr.Zero);
                 keys.Clear(); buttons.Clear();
             }
