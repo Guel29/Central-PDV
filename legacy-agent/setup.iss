@@ -1,7 +1,7 @@
 [Setup]
 AppId=SmartPDV-Agent-Win7
 AppName=SmartPDV Agent Windows 7
-AppVersion=0.1.5
+AppVersion=0.1.6
 DefaultDirName={localappdata}\Programs\SmartPDV-Agent-Win7
 DefaultGroupName=SmartPDV Agent Win7
 PrivilegesRequired=lowest
@@ -22,7 +22,7 @@ Name: "{group}\Iniciar Agent"; Filename: "{app}\SmartPDV-Agent-Win7.exe"
 Name: "{userstartup}\SmartPDV Agent Win7"; Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "--background"; Tasks: startup
 [Run]
 Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "setup"; Description: "Cadastrar este PDV usando o pareamento da Central"; Flags: postinstall skipifsilent waituntilterminated; Check: NeedsPairing
-Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "--background"; Description: "Iniciar Agent"; Flags: postinstall skipifsilent nowait
+Filename: "{app}\SmartPDV-Agent-Win7.exe"; Description: "Iniciar Agent"; Flags: postinstall skipifsilent nowait
 [Code]
 function NeedsPairing(): Boolean;
 begin

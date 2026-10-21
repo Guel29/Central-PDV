@@ -34,3 +34,7 @@ O controle utiliza entrada sintetizada por `SendInput`, sem criar um dispositivo
 O usuário confirmou que LS2208 e teclado funcionam no Bloco de Notas remoto, mas não no VRPDV através do SmartPDV, inclusive após a versão 1.0.6. Localmente e pelo AnyDesk instalado, o leitor funciona. O Agent não consulta o nome do aplicativo para permitir ou negar entrada; ele chama SendInput na sessão interativa do Windows. A causa da diferença de comportamento ainda não foi determinada.
 
 Os testes automatizados verificam transporte TLS, autorizações, identidade física das teclas, eventos nativos Windows, Escape, encerramento e persistência. Eles não substituem o teste com VRPDV/LS2208 real. A remoção do campo não é apresentada como solução dessa falha.
+
+## Versão do Agent em execução (Central 1.0.8)
+
+O card e o atendimento mostram a versão informada na conexão autenticada do Agent: 0.1.6 no legado Windows 7 ou 1.0.8 no moderno. Em Agents anteriores, aparece **Agent sem versão informada**. Esse aviso não bloqueia o controle. Versão e identificador do protocolo ficam apenas em memória e são apagados ao desconectar; não contêm códigos, credenciais ou teclas. A informação é declarada pelo próprio Agent e não certifica o binário. A instalação de outra versão não garante que uma instância anterior tenha encerrado; confirme a versão na Central após iniciar o atalho instalado.

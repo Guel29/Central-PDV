@@ -38,6 +38,10 @@ function updateAlarm() {
   if(!pending) {clearInterval(alarmTimer);alarmTimer=null;}
   lastPending=pending;
 }
+function agentVersion(p) {
+  return p?.agent_version ? `Agent conectado: ${p.agent_version}`
+    : 'Agent sem versão informada · não é possível confirmar a atualização no PDV';
+}
 function render() {
   $('summary').textContent=`${pdvs.filter(p=>p.online).length}/${pdvs.length} PDVs online · ${pdvs.filter(p=>p.pending && p.online).length} solicitações`;
   for(const p of pdvs) {
@@ -49,12 +53,13 @@ function render() {
     const {card,title,img,info}=cards.get(p.number);
     card.className='card'+(!p.online?' offline':p.pending?' pending':p.active?' active':'');
     title.textContent=`PDV ${String(p.number).padStart(2,'0')}`;
-    info.textContent=!p.online?'Desconectado':p.pending?'LIBERAÇÃO SOLICITADA':p.active?`Atendimento · ${p.supervisor}`:'Online · Disponível';
+    info.textContent=!p.online?'Desconectado':(p.pending?'LIBERAÇÃO SOLICITADA':p.active?`Atendimento · ${p.supervisor}`:'Online · Disponível')+' · '+agentVersion(p);
     if(p.thumbnail) img.src='data:image/jpeg;base64,'+p.thumbnail; else img.removeAttribute('src');
     card.disabled=!p.online;
   }
   if(selected!==null) {
     const p=pdvs.find(p=>p.number===selected);
+    $('agent-version').textContent=agentVersion(p);
     if(!p?.online || (!p.active && !p.pending)) {selected=null;updatePeripherals();$('remote').close();}
     else if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
   }
@@ -73,6 +78,7 @@ function showRemote(number) {
   updatePeripherals();
   $('switch').replaceChildren(...pdvs.filter(p=>p.online).map(p=>new Option(`PDV ${p.number}`,p.number,false,p.number===number)));
   const p=pdvs.find(p=>p.number===number);
+  $('agent-version').textContent=agentVersion(p);
   if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
   if(!$('remote').open) $('remote').showModal();
   $('screen').focus();

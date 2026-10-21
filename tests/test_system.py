@@ -271,6 +271,9 @@ def test_agent_reconnect_after_central_restart(tmp_path):
         task=asyncio.create_task(agent.run())
         try:
             await until(lambda: central.state[1]['thumbnail'] is not None)
+            from smartpdv.version import VERSION
+            assert central.state[1]['agent_version']==VERSION
+            assert central.state[1]['keyboard_protocol'] is None  # FakeDesktop is not native Windows.
             desktop.request=True
             await until(lambda: central.state[1]['pending'])
             # Stop the same live service and restore it with the same TLS identity.
@@ -415,5 +418,33 @@ def test_input_rejection_report_keeps_remote_session_connected(tmp_path):
         finally:
             task.cancel()
             await asyncio.gather(task,return_exceptions=True)
+            await runner.cleanup()
+    asyncio.run(scenario())
+
+
+def test_agent_version_clears_on_reconnect_and_invalid_report(tmp_path):
+    async def scenario():
+        pin=Fingerprint(bytes.fromhex(prepare(tmp_path)))
+        central,runner,port=await start(tmp_path)
+        url=f'https://127.0.0.1:{port}'
+        identity={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN}
+        try:
+            async with ClientSession() as client:
+                dashboard=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
+                for headers,version,protocol in (
+                    ({'X-SmartPDV-Version':'0.1.6','X-SmartPDV-Keyboard':'scan-code-v1'},'0.1.6','scan-code-v1'),
+                    ({},None,None),
+                    ({'X-SmartPDV-Version':'<script>1.2.3</script>','X-SmartPDV-Keyboard':'arbitrary'},None,None)):
+                    agent=await client.ws_connect(url+'/agent',ssl=pin,headers={**identity,**headers})
+                    report=await state(dashboard,lambda s:s['online'])
+                    assert report['agent_version']==version
+                    assert report['keyboard_protocol']==protocol
+                    assert 'X-Computer-ID' not in report and 'token' not in report
+                    await agent.close()
+                    report=await state(dashboard,lambda s:not s['online'])
+                    assert report['agent_version'] is None
+                    assert report['keyboard_protocol'] is None
+                await dashboard.close()
+        finally:
             await runner.cleanup()
     asyncio.run(scenario())

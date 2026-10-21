@@ -28,6 +28,8 @@ jobs:
             Get-Content build.log | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$_" }
             throw 'Compilation failed'
           }
+          $agentVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path 'legacy-agent/bin/Release/SmartPDV-Agent-Win7.exe')).FileVersion
+          if ($agentVersion -ne '0.1.6.0') { throw "Unexpected Agent file version: $agentVersion" }
       - name: Verify native scan code keyboard input
         working-directory: legacy-agent
         shell: pwsh
@@ -114,7 +116,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'win7-notes.md'
           @'
           Agent separado para Windows 7 SP1 (32 ou 64 bits), exige .NET Framework 4.8 instalado.
-          Atualizacao 0.1.5: preserva teclas fisicas enviadas pela Central 1.0.6, incluindo teclado numerico, Enter numerico, Windows e modificadores esquerdo/direito; mantem configuracao e pareamento. Sem redirecionamento USB generico. Leitura no VRPDV/LS2208 precisa de validacao no caixa.
+          Atualizacao 0.1.6: informa versao e protocolo de teclado na conexao TLS para exibicao na Central 1.0.8 e inclui versao nas propriedades do executavel Windows. Preserva entrada por scan codes, configuracao e pareamento. Nao altera o metodo de teclado nem confirma correcao da leitura do cartao fiscal no VRPDV.
           Captura de tela, F11 e controle mouse/teclado nativos. Inicializacao discreta apos login do Windows.
           Pareamento com a Central pela LAN, TLS 1.2 e credencial protegida por DPAPI. Sem banco, login de aplicativo ou nuvem.
           Testes automatizados do executavel e instalador feitos em Windows moderno contra a Central real.

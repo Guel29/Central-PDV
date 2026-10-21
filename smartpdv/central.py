@@ -8,6 +8,7 @@ from pathlib import Path
 import secrets
 import time
 import os
+import re
 import threading
 from contextlib import AsyncExitStack
 from aiohttp import web, WSMsgType
@@ -34,7 +35,7 @@ class Central:
         self.locks = {p['number']: asyncio.Lock() for p in self.config['pdvs']}
         self.state = {p['number']: dict(number=p['number'], online=False, pending=False,
                       active=False, thumbnail=None, connected_at=None, requested_at=None,
-                      supervisor=None, attended_at=None, owner=None) for p in self.config['pdvs']}
+                      supervisor=None, attended_at=None, owner=None, agent_version=None, keyboard_protocol=None) for p in self.config['pdvs']}
         self.app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[self.errors])
         self.app.add_routes([web.get('/', self.index), web.get('/app.js', self.asset),
                             web.get('/style.css', self.asset), web.get('/session', self.session_info), web.get('/dashboard', self.dashboard),
@@ -285,7 +286,11 @@ class Central:
         await ws.prepare(request)
         self.agents[number] = ws
         s = self.state[number]
-        s.update(online=True, connected_at=now())
+        version = request.headers.get('X-SmartPDV-Version','')
+        version = version if re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}',version) else None
+        protocol = request.headers.get('X-SmartPDV-Keyboard')
+        s.update(online=True, connected_at=now(), agent_version=version,
+                 keyboard_protocol=protocol if protocol=='scan-code-v1' else None)
         await self.publish()
         last_frame = 0
         try:
@@ -321,7 +326,7 @@ class Central:
             self.agents.pop(number, None)
             async with self.locks[number]:
                 await self.end(s, 'PDV desconectado')
-                s.update(online=False, active=False, thumbnail=None, connected_at=None)
+                s.update(online=False, active=False, thumbnail=None, connected_at=None, agent_version=None, keyboard_protocol=None)
             await self.publish()
         return ws
 

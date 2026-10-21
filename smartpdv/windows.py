@@ -7,6 +7,8 @@ from .key_codes import PHYSICAL_SCANS
 
 
 class Desktop:
+    keyboard_protocol = 'scan-code-v1'
+
     def __init__(self, hotkey=True, minimum_press_ms=20):
         self.user = ctypes.windll.user32
         self.user.SetProcessDPIAware()

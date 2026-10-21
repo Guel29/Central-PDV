@@ -39,6 +39,7 @@ async def main():
     await page.locator('.card.pending').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
+    assert 'sem versão informada' in await page.locator('#agent-version').text_content()
     await page.locator('#windows-key').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
     for action in ('down','up'):
@@ -73,6 +74,7 @@ async def main():
     await page.locator('.card').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
+    assert 'sem versão informada' in await page.locator('#agent-version').text_content()
     await page.locator('#screen').press('1')  # Disabled keyboard must not reach the Agent.
     assert await page.locator('#windows-key').is_disabled()
     await page.locator('#close').focus()
@@ -92,6 +94,7 @@ async def main():
     await page.locator('.card').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
+    assert 'sem versão informada' in await page.locator('#agent-version').text_content()
     assert await page.locator('#barcode').count()==0
     for key in '0012':
      await page.locator('#screen').press(key)
@@ -105,9 +108,22 @@ async def main():
     await agent.close()
     await reader
     await page.locator('.card.offline').wait_for()
+    agent=await client.ws_connect(f'https://127.0.0.1:{port}/agent',ssl=Fingerprint(bytes.fromhex(pin)),headers={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN,'X-SmartPDV-Version':'0.1.6','X-SmartPDV-Keyboard':'scan-code-v1'})
+    reader=asyncio.create_task(read_agent())
+    await page.locator('.card:not(.offline)').wait_for()
+    assert '0.1.6' in await page.locator('.card').text_content()
+    await page.locator('.card').click()
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
+    await page.locator('#remote[open]').wait_for()
+    assert await page.locator('#agent-version').text_content()=='Agent conectado: 0.1.6'
+    await page.locator('#close').click()
+    await asyncio.wait_for(ended(),5)
+    await agent.close()
+    await reader
+    await page.locator('.card.offline').wait_for()
     assert errors==[],errors
     await browser.close()
-    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, teclado direto com zeros iniciais, teclado numérico e botão Windows remoto, campo EAN removido, encerramento e offline; no JS errors')
+    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, teclado direto com zeros iniciais, teclado numérico e botão Windows remoto, campo EAN removido, versão do Agent ativo e reconexão, encerramento e offline; no JS errors')
   finally:
    await runner.cleanup()
 asyncio.run(main())

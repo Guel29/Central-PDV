@@ -20,8 +20,13 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
+[assembly: System.Reflection.AssemblyVersion("0.1.6.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.1.6.0")]
+
 namespace SmartPDV.Legacy
 {
+    static class BuildInfo { public const string Version = "0.1.6"; }
+
     static class JsonFiles
     {
         public static JavaScriptSerializer Serializer()
@@ -150,7 +155,8 @@ namespace SmartPDV.Legacy
                 string host = c.Host.IndexOf(':') >= 0 ? "[" + c.Host + "]" : c.Host;
                 string headers = "GET /agent HTTP/1.1\r\nHost: " + host + ":" + c.Port +
                     "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + key +
-                    "\r\nAuthorization: Bearer " + c.Token + "\r\nX-Computer-ID: " + c.ComputerId + "\r\n\r\n";
+                    "\r\nAuthorization: Bearer " + c.Token + "\r\nX-Computer-ID: " + c.ComputerId +
+                    "\r\nX-SmartPDV-Version: " + BuildInfo.Version + "\r\nX-SmartPDV-Keyboard: scan-code-v1\r\n\r\n";
                 byte[] request = Encoding.ASCII.GetBytes(headers); stream.Write(request, 0, request.Length);
                 var response = new StringBuilder();
                 while (!response.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal))
@@ -531,7 +537,11 @@ namespace SmartPDV.Legacy
                 bool created;
                 using (var mutex = new Mutex(true, "Local\\SmartPDV-Agent-Win7-" + WindowsIdentity.GetCurrent().User.Value, out created))
                 {
-                    if (!created) return 0;
+                    if (!created)
+                    {
+                        if (!background) MessageBox.Show("Outro Agent ja esta em execucao nesta conta Windows. Encerre SmartPDV-Agent-Win7.exe no Gerenciador de Tarefas e abra novamente pelo Menu Iniciar para usar a versao instalada.", "SmartPDV Agent " + BuildInfo.Version, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return 0;
+                    }
                     try { using (var context = new AgentContext(config)) Application.Run(context); }
                     finally { mutex.ReleaseMutex(); }
                 }

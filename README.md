@@ -80,3 +80,11 @@ Para usar o controle direto, abra o atendimento e clique no campo desejado dentr
 A Central preserva a identificação das teclas, distinguindo números da fileira superior e do teclado numérico, Enter numérico e modificadores esquerdo/direito. Há também o botão **Windows no PDV**. Esses recursos exigem Agent Windows 10/11 1.0.6 ou Agent legado 0.1.5; esta remoção do campo exige atualizar somente a Central. Confira Num Lock nos dois computadores ao usar o teclado numérico: os estados de trava não são sincronizados automaticamente.
 
 A consulta **Verificar permissões** permanece removida. O indicador de resultado de `SendInput` e a versão em `/health` permanecem disponíveis. **O usuário informou que a leitura continua falhando no VRPDV após a versão 1.0.6; a causa ainda não está comprovada.** Aceite pelo Windows não comprova consumo pelo aplicativo. A remoção do campo e o encaminhamento de Escape não corrigem, por si, essa falha. Atalhos reservados pelo Windows, como Ctrl+Alt+Delete, não são gerados por `SendInput` comum. Veja os [limites de periféricos](docs/peripherals.md).
+
+### Identificar o Agent conectado (Central/Agent 1.0.8; Agent legado 0.1.6)
+
+Os cards e o atendimento mostram a versão informada pelo Agent conectado. Um Agent anterior aparece como **Agent sem versão informada**, pois a versão em execução não pode ser confirmada pelo servidor. A indicação não impede o controle, não consulta permissões Windows e não grava conteúdo digitado. A Central limpa a versão ao desconectar; cadastro e pareamento permanecem. O Agent legado também informa versão 0.1.6.0 nas propriedades do executável Windows.
+
+Ao atualizar no PDV, encerre `SmartPDV-Agent-Win7.exe` pelo Gerenciador de Tarefas, instale na mesma conta Windows e inicie pelo atalho **Iniciar Agent** do Menu Iniciar. Confira **Agent conectado: 0.1.6** na Central. A abertura manual avisa se outra instância estiver rodando; a inicialização automática segue silenciosa. No Windows 10/11, a versão correspondente é 1.0.8.
+
+O teste como administrador não resolveu a leitura do cartão fiscal, e o usuário confirmou que o cartão contém só números. A identificação de versão serve para verificar o executável efetivo antes de continuar a investigação; **esta atualização não confirma a correção da falha no VRPDV e não muda o método de entrada**.

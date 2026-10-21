@@ -6,6 +6,7 @@ import socket
 import time
 from aiohttp import ClientSession, ClientWSTimeout, Fingerprint, WSMsgType
 from .storage import load_json, unprotect
+from .version import VERSION
 
 
 def lan_address(host):
@@ -36,7 +37,8 @@ class Agent:
                             ssl=Fingerprint(bytes.fromhex(self.config['fingerprint'])), heartbeat=5,
                             timeout=ClientWSTimeout(ws_receive=20, ws_close=5), max_msg_size=8192,
                             headers={'Authorization':'Bearer ' + unprotect(self.config['token']),
-                                     'X-Computer-ID':self.config['computer_id']}) as ws:
+                                     'X-Computer-ID':self.config['computer_id'],
+                                     'X-SmartPDV-Version':VERSION, 'X-SmartPDV-Keyboard':getattr(self.desktop,'keyboard_protocol','unknown')}) as ws:
                             delay = 1
                             if self.pending:
                                 await ws.send_json({'type':'request'})
