@@ -64,6 +64,7 @@ class ScanKeyboard:
                 time.sleep(remaining)
         flags = 0x0008 | (1 if scan & 0xff00 == 0xe000 else 0) | (0 if down else 2)
         packet = Input(type=1, data=InputUnion(keyboard=KeyboardInput(scan=scan & 255, flags=flags)))
+        c.set_last_error(0)
         if self.user.SendInput(1, c.byref(packet), c.sizeof(Input)) != 1:
             raise OSError(c.get_last_error(), 'Windows recusou a entrada remota; verifique as permissoes do Agent e do aplicativo')
         if down:

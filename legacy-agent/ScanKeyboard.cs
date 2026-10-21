@@ -30,6 +30,7 @@ namespace SmartPDV.Legacy
         {
             public uint Type; public InputUnion Data;
         }
+        [DllImport("kernel32.dll")] static extern void SetLastError(uint code);
         [DllImport("user32.dll", SetLastError = true)]
         static extern uint SendInput(uint count, Input[] inputs, int size);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
@@ -67,6 +68,7 @@ namespace SmartPDV.Legacy
             if (!down) flags |= 0x0002u;
             var input = new Input { Type = 1, Data = new InputUnion {
                 Keyboard = new KeyboardInput { Scan = (ushort)(scan & 0xff), Flags = flags } } };
+            SetLastError(0);
             if (SendInput(1, new Input[] { input }, Marshal.SizeOf(typeof(Input))) != 1)
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows nao aceitou a entrada remota. Verifique as permissoes do Agent e do aplicativo.");
             if (down) { if (!Pressed.ContainsKey(scan)) Pressed[scan] = Stopwatch.GetTimestamp(); }
