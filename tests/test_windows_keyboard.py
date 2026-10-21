@@ -51,7 +51,8 @@ def test_native_desktop_scan_codes_and_release():
                 user.TranslateMessage(c.byref(message))
                 user.DispatchMessageW(c.byref(message))
             time.sleep(.001)
-        expected = [ord(k) for k in keys[:13]] + [13,37,17]
+        # Low-level hooks report VK_LCONTROL for the generic Control scan.
+        expected = [ord(k) for k in keys[:13]] + [13,37,0xa2]
         assert len(events) == 2*len(keys), events
         for index, vk in enumerate(expected):
             down, up = events[index*2:index*2+2]
