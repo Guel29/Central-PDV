@@ -59,8 +59,10 @@ class ScanKeyboard:
 
     def send(self, scan, down):
         if not down and scan in self.pressed:
-            remaining = self.minimum_press - (time.monotonic() - self.pressed[scan])
-            if remaining > 0:
+            while True:
+                remaining = self.minimum_press - (time.perf_counter() - self.pressed[scan])
+                if remaining <= 0:
+                    break
                 time.sleep(remaining)
         flags = 0x0008 | (1 if scan & 0xff00 == 0xe000 else 0) | (0 if down else 2)
         packet = Input(type=1, data=InputUnion(keyboard=KeyboardInput(scan=scan & 255, flags=flags)))
@@ -68,6 +70,6 @@ class ScanKeyboard:
         if self.user.SendInput(1, c.byref(packet), c.sizeof(Input)) != 1:
             raise OSError(c.get_last_error(), 'Windows recusou a entrada remota; verifique as permissoes do Agent e do aplicativo')
         if down:
-            self.pressed.setdefault(scan, time.monotonic())
+            self.pressed.setdefault(scan, time.perf_counter())
         else:
             self.pressed.pop(scan, None)

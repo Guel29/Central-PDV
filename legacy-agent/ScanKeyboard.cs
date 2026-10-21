@@ -60,8 +60,12 @@ namespace SmartPDV.Legacy
             long started;
             if (!down && Pressed.TryGetValue(scan, out started))
             {
-                double remaining = MinimumPressMilliseconds - (Stopwatch.GetTimestamp()-started)*1000.0/Stopwatch.Frequency;
-                if (remaining > 0) Thread.Sleep((int)Math.Ceiling(remaining));
+                while (true)
+                {
+                    double remaining = MinimumPressMilliseconds - (Stopwatch.GetTimestamp()-started)*1000.0/Stopwatch.Frequency;
+                    if (remaining <= 0) break;
+                    Thread.Sleep((int)Math.Ceiling(remaining));
+                }
             }
             uint flags = 0x0008u; // KEYEVENTF_SCANCODE, wVk must be zero.
             if ((scan & 0xff00) == 0xe000) flags |= 0x0001u;

@@ -31,7 +31,7 @@ def test_native_desktop_scan_codes_and_release():
         if code >= 0:
             data = c.cast(pointer, c.POINTER(KeyboardData)).contents
             if data.flags & 16:
-                events.append((data.vk, data.scan, data.flags, time.monotonic()))
+                events.append((data.vk, data.scan, data.flags, time.perf_counter()))
                 return 1  # Swallow synthetic CI input instead of typing into other apps.
         return user.CallNextHookEx(None, code, message, pointer)
     hook = user.SetWindowsHookExW(13, callback, kernel.GetModuleHandleW(None), 0)
@@ -59,7 +59,7 @@ def test_native_desktop_scan_codes_and_release():
             assert down[0] == up[0] == vk
             assert down[1] == up[1] != 0
             assert not down[2] & 128 and up[2] & 128
-            assert up[3]-down[3] >= .015
+            assert up[3]-down[3] >= .019
         assert events[-4][2] & 1 and events[-3][2] & 1  # Extended left arrow.
         assert not desktop.held_keys
     finally:

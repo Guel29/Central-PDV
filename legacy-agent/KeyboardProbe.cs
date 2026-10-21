@@ -45,7 +45,7 @@ namespace SmartPDV.Legacy
                 for(int i=0;i<keys.Length;i++)
                 {
                     var down=events[i*2]; var up=events[i*2+1];
-                    if ((times[i*2+1]-times[i*2])*1000.0/Stopwatch.Frequency < 15)
+                    if ((times[i*2+1]-times[i*2])*1000.0/Stopwatch.Frequency < 19)
                         throw new Exception("Keyboard press too short at "+i);
                     if(down.Key!=keys[i] || up.Key!=keys[i] || down.Scan==0 || down.Scan!=up.Scan ||
                        (down.Flags&128)!=0 || (up.Flags&128)==0)
