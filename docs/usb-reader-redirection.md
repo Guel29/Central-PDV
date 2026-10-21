@@ -51,3 +51,27 @@ O SDK/CLI e o modelo de segurança determinarão as alterações. Os pontos do p
 ## Aceitação com o equipamento real
 
 Validar o dispositivo anexado no PDV, leitura de produto e cartão fiscal válido na mesma tela, rejeição normal de cartão não autorizado pela VR, devolução à Central, alternância entre dois PDVs, encerramento forçado, queda da LAN, reinício da Central/Agent e restauração da configuração anterior. Fazer os testes em janela supervisionada sem capturar o número do cartão. Até esses testes, não afirmar correção fiscal nem equivalência com outros aplicativos de acesso remoto.
+
+## Alternativas para entrada semelhante à local, mantendo cartão
+
+O usuário reiterou que a autorização deve continuar exclusivamente por cartão e pediu outra forma de a leitura funcionar como local. Nenhuma mudança para senha foi feita no Smart Control nem na VR.
+
+### Driver de entrada Interception
+
+O [README oficial do Interception](https://github.com/oblitum/Interception/blob/master/README.md) informa testes entre Windows XP e Windows 10 e distingue uso não comercial de uso comercial. Para uso comercial, descreve licenças comerciais específicas. Portanto, a distribuição pública não foi selecionada como solução gratuita para o supermercado. Sua API é de interceptação/envio de entrada e não constitui, por si só, redirecionamento USB do LS2208. Nenhum driver foi instalado ou incorporado.
+
+### Adaptador físico USB/HID por PDV
+
+Uma alternativa técnica é um módulo com USB nativo, por exemplo ESP32-S3 com conector USB-OTG acessível, ligado fisicamente ao PDV. Ele recebe eventos autorizados pela LAN e produz relatórios de teclado USB HID. O Windows usa a pilha HID/teclado do próprio sistema. Isso fornece um novo dispositivo de teclado USB físico; não transporta a interface USB completa do LS2208 nem reproduz sua identidade de fabricante. A aceitação pela tela fiscal da VR continua dependendo de teste real, especialmente se ela exigir uma coleção HID específica, identidade do leitor ou protocolo serial.
+
+O [exemplo oficial ESP-IDF TinyUSB HID](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb/device/tusb_hid) demonstra dispositivo teclado/mouse USB em ESP32-S2/S3 e outros alvos com USB-OTG. A [arquitetura HID documentada pela Microsoft](https://github.com/MicrosoftDocs/windows-driver-docs/blob/staging/windows-driver-docs-pr/hid/hid-architecture.md) descreve a pilha de drivers fornecida pelo Windows e as coleções teclado/keypad. Essas fontes sustentam a arquitetura, não uma homologação de cartão fiscal VR.
+
+O firmware pode ser desenvolvido sem licença comercial paga, mas o módulo e o cabo têm custo de compra. Foi solicitado ao usuário esclarecer se pode haver hardware adicional ou se a solução precisa usar somente os equipamentos existentes. Não houve compra nem recomendação de um modelo fechado sem confirmar conexão USB nativa e rede. Um ESP32 sem USB-OTG ou um conector ligado apenas a conversor serial não atende ao papel de dispositivo HID descrito aqui.
+
+Fluxo proposto: leitor da Central → sessão autorizada no Smart Control → LAN autenticada/criptografada → módulo associado exclusivamente ao PDV atendido → relatórios USB HID → validação normal do cartão pela VR. A rede pode ser Wi-Fi na mesma LAN ou Ethernet com módulo apropriado; não presumir que exista Wi-Fi no caixa. É necessário preservar a cadência observável, os controles/prefixos/terminadores suportados e impedir duplicação entre o envio normal de teclado e esse caminho.
+
+A integração deve limitar-se ao atendimento ativo, limpar estados de teclas ao encerrar/perder conexão, descartar dados pendentes ao reconectar e impedir reapresentação automática do cartão. As leituras ficam apenas em trânsito/memória, sem conteúdo ou hash nos logs. O módulo deve ter identidade de dispositivo própria, sem clonar VID/PID do LS2208. Não há protótipo de firmware ou integração funcional entregue nesta etapa.
+
+### Alternativa somente por software: cadência
+
+O código atual do Agent impõe 20 ms mínimos por tecla e não preserva os tempos originais do leitor. Reprodução de uma leitura agrupada com cadência preservada é uma hipótese para telas que distinguem scanner por velocidade; não transforma a entrada em USB físico. A versão inicial também foi relatada com falha, portanto os 20 ms não podem ser declarados causa única. Sem identificar a regra da tela da VR ou obter uma comparação válida no equipamento, essa alternativa não foi implementada como se fosse uma correção comprovada.
