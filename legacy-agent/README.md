@@ -24,3 +24,7 @@ msbuild legacy-agent/SmartPDV-Agent-Win7.csproj /p:Configuration=Release
 ```
 
 A workflow `Windows 7 Agent` compila, testa o protocolo TLS/pareamento/chamado/sessao com a Central real, gera instalador Inno Setup 6.2.2 e testa o executavel instalado. O modo explicito `--network-probe` e usado somente nesses testes: nao captura tela nem aplica entrada fisica. **Esses testes rodam em Windows moderno e nao substituem a validacao em Windows 7 real.** Captura, F11, controle fisico, desempenho e atualizacoes TLS do Windows 7 precisam ser verificados no equipamento de destino.
+
+### Atualizacao 0.1.1
+
+O Agent usa `SendInput` com scan codes Windows para o teclado remoto, incluindo o sinalizador de teclas estendidas e liberacao correspondente das teclas ao encerrar. Isso melhora a compatibilidade de entrada sem instalar drivers nem mudar o protocolo da Central. O instalador preserva `agent.json`, numero do caixa e pareamento. Encerre o Agent antes de atualizar e inicie novamente depois. Um teste Windows observa os eventos reais por hook (somente no executavel de testes) para validar digitos EAN, Enter e teclas estendidas. O VRPDV e o leitor fisico LS2208 nao estao disponiveis no CI; o resultado no aplicativo deve ser confirmado no caixa. Essa entrada continua sendo sintetica, sem redirecionamento USB e sem contornar restricoes de privilegio do Windows.

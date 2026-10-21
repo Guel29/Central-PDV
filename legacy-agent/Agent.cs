@@ -251,10 +251,9 @@ namespace SmartPDV.Legacy
     {
         [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
         [DllImport("user32.dll")] static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
-        [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern short VkKeyScan(char key);
         readonly object inputLock = new object();
-        readonly HashSet<byte> keys = new HashSet<byte>();
+        readonly Dictionary<byte, ushort> keys = new Dictionary<byte, ushort>();
         readonly HashSet<int> buttons = new HashSet<int>();
         readonly Dictionary<string, byte> special = new Dictionary<string, byte> {
             {"Enter",13},{"Escape",27},{"Tab",9},{"Backspace",8},{"Delete",46},{"ArrowLeft",37},{"ArrowUp",38},
@@ -313,8 +312,11 @@ namespace SmartPDV.Legacy
                         else if (key.Length == 1) { short code = VkKeyScan(key[0]); if (code == -1) return; vk = (byte)(code & 255); }
                         else return;
                     }
-                    keybd_event(vk, 0, action == "down" ? 0u : 2u, UIntPtr.Zero);
-                    if (action == "down") keys.Add(vk); else keys.Remove(vk);
+                    ushort scan;
+                    if (!keys.TryGetValue(vk, out scan)) scan = ScanKeyboard.Resolve(vk);
+                    bool down = action == "down";
+                    ScanKeyboard.Send(scan, down);
+                    if (down) keys[vk] = scan; else keys.Remove(vk);
                 }
             }
         }
@@ -322,7 +324,7 @@ namespace SmartPDV.Legacy
         {
             lock (inputLock)
             {
-                foreach (byte key in keys) keybd_event(key, 0, 2, UIntPtr.Zero);
+                foreach (ushort scan in keys.Values) ScanKeyboard.Send(scan, false);
                 foreach (int button in buttons) mouse_event(button == 0 ? 4u : 16u, 0, 0, 0, UIntPtr.Zero);
                 keys.Clear(); buttons.Clear();
             }

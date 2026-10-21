@@ -28,6 +28,17 @@ jobs:
             Get-Content build.log | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$_" }
             throw 'Compilation failed'
           }
+      - name: Verify native scan code keyboard input
+        shell: pwsh
+        run: |
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:legacy-agent/KeyboardProbe.exe /reference:System.Windows.Forms.dll legacy-agent/ScanKeyboard.cs legacy-agent/KeyboardProbe.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Keyboard probe compilation failed' }
+          & ./legacy-agent/KeyboardProbe.exe 2>&1 | Tee-Object keyboard-probe.log
+          if ($LASTEXITCODE -ne 0) {
+            $details = (Get-Content keyboard-probe.log | Select-Object -Last 12) -join '%0A'
+            Write-Host "::error::$details"
+            throw 'Native keyboard verification failed'
+          }
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Test real TLS and WebSocket interoperability
@@ -93,6 +104,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'win7-notes.md'
           @'
           Agent separado para Windows 7 SP1 (32 ou 64 bits), exige .NET Framework 4.8 instalado.
+          Atualizacao 0.1.1: teclado remoto por SendInput/scan codes; preserva pareamento e configuracao. Compatibilidade com VRPDV precisa de teste no caixa.
           Captura de tela, F11 e controle mouse/teclado nativos. Inicializacao discreta apos login do Windows.
           Pareamento com a Central pela LAN, TLS 1.2 e credencial protegida por DPAPI. Sem banco, login de aplicativo ou nuvem.
           Testes automatizados do executavel e instalador feitos em Windows moderno contra a Central real.

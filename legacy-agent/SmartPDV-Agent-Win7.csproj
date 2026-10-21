@@ -17,6 +17,7 @@
     <Reference Include="System.Drawing"/><Reference Include="System.Windows.Forms"/>
     <Reference Include="System.Web.Extensions"/><Reference Include="System.Security"/>
     <Compile Include="Agent.cs"/>
+    <Compile Include="ScanKeyboard.cs"/>
     <None Include="App.config"/>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
