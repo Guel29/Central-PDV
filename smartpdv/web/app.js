@@ -5,7 +5,6 @@ let socket, pdvs = [], selected = null, audio, alarmTimer, reconnectTimer, stopp
 let alarm = {enabled:true,repeat_seconds:10}, lastPending = false, lastMove = 0;
 const cards = new Map();
 let peripherals = {keyboard:true,mouse:true};
-let peripheralsDirty = false, savingPeripherals = false;
 let knownPending = new Set();
 function send(data) { if(socket?.readyState !== WebSocket.OPEN)return false;socket.send(JSON.stringify(data));return true; }
 function input(event) {
@@ -14,13 +13,13 @@ function input(event) {
   if(['mouse','wheel'].includes(event.kind) && !peripherals.mouse)return;
   send({type:'input',number:selected,event});
 }
-function updatePeripherals() {
-  if(!peripheralsDirty && !savingPeripherals)for(const key of ['keyboard','mouse'])$('allow-'+key).checked=peripherals[key];
-  for(const key of ['keyboard','mouse'])$('allow-'+key).disabled=savingPeripherals || socket?.readyState!==WebSocket.OPEN;
-  $('save-peripherals').disabled=savingPeripherals || socket?.readyState!==WebSocket.OPEN;
+function updateControls() {
   $('windows-key').disabled=!peripherals.keyboard || selected===null;
-  $('control-help').textContent=`Teclado ${peripherals.keyboard?'autorizado':'desativado'} · Mouse ${peripherals.mouse?'autorizado':'desativado'} · Clique na imagem para controlar · Esc no PDV; na tela cheia, o navegador pode sair`;
+  const disabled = [!peripherals.keyboard && 'Teclado desativado na configuração da Central',
+    !peripherals.mouse && 'Mouse desativado na configuração da Central'].filter(Boolean);
+  $('control-help').textContent=[...disabled,'Clique na imagem para controlar · Esc no PDV; na tela cheia, o navegador pode sair'].join(' · ');
 }
+
 function beep() {
   if(!audio || audio.state !== 'running' || !alarm.enabled) return;
   for(let i=0;i<3;i++) {
@@ -60,7 +59,7 @@ function render() {
   if(selected!==null) {
     const p=pdvs.find(p=>p.number===selected);
     $('agent-version').textContent=agentVersion(p);
-    if(!p?.online || (!p.active && !p.pending)) {selected=null;updatePeripherals();$('remote').close();}
+    if(!p?.online || (!p.active && !p.pending)) {selected=null;updateControls();$('remote').close();}
     else if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
   }
   updateAlarm();
@@ -68,14 +67,14 @@ function render() {
 function openRemote(number) {
   input({kind:'release'});
   if(selected!==null && selected!==number) send({type:'end',number:selected,result:'Alternância de PDV'});
-  selected=null;updatePeripherals();
+  selected=null;updateControls();
   opening=number; send({type:'start',number});
 }
 function showRemote(number) {
   selected=number;
   $('remote-title').textContent=`PDV ${number} · Atendimento ativo`;
   $('input-status').textContent='Entrada remota: aguardando teclado';
-  updatePeripherals();
+  updateControls();
   $('switch').replaceChildren(...pdvs.filter(p=>p.online).map(p=>new Option(`PDV ${p.number}`,p.number,false,p.number===number)));
   const p=pdvs.find(p=>p.number===number);
   $('agent-version').textContent=agentVersion(p);
@@ -86,29 +85,23 @@ function showRemote(number) {
 function endRemote() {
   input({kind:'release'});
   if(selected!==null) send({type:'end',number:selected,result:'Concluído'});
-  selected=null;updatePeripherals();$('remote').close();
+  selected=null;updateControls();$('remote').close();
   if(document.fullscreenElement)document.exitFullscreen();
 }
 function connect() {
   clearTimeout(reconnectTimer);
   socket=new WebSocket(`wss://${location.host}/dashboard`);
-  socket.onopen=()=>{$('connection').textContent='● Central conectada · TLS';updatePeripherals();};
+  socket.onopen=()=>{$('connection').textContent='● Central conectada · TLS';updateControls();};
   socket.onmessage=e=>{
     const data=JSON.parse(e.data);
     if(data.type==='state'){pdvs=data.pdvs;alarm=data.alarm;
       peripherals=data.peripherals || {keyboard:true,mouse:true};
-      updatePeripherals();
-      if(!peripheralsDirty && !savingPeripherals)$('peripherals-status').textContent='Autorizações aplicadas na Central';
+      updateControls();
       $('cards').style.setProperty('--columns',Math.max(1,Math.min(8,data.dashboard.columns||4)));render();}
     else if(data.type==='opened'){showRemote(data.number);opening=null;}
     else if(data.type==='error'){
       opening=null;
-      if(savingPeripherals){savingPeripherals=false;$('peripherals-status').textContent=data.message;}
-      updatePeripherals();alert(data.message);
-    }
-    else if(data.type==='peripherals_saved'){
-      peripheralsDirty=false;savingPeripherals=false;updatePeripherals();
-      $('peripherals-status').textContent='Autorizações salvas neste computador';
+      updateControls();alert(data.message);
     }
     else if(data.type==='input_status' && selected===data.number){
       $('input-status').textContent=data.accepted
@@ -124,8 +117,7 @@ function connect() {
   };
   socket.onclose=async()=>{
     $('connection').textContent='Central desconectada · Reconectando';
-    clearInterval(alarmTimer);lastPending=false;selected=null;savingPeripherals=false;updatePeripherals();$('remote').close();
-    $('peripherals-status').textContent='Central desconectada · alterações não confirmadas';
+    clearInterval(alarmTimer);lastPending=false;selected=null;updateControls();$('remote').close();
     for(const {card,info} of cards.values()){card.className='card offline';card.disabled=true;info.textContent='Conexão com a Central perdida';}
     if(!stopped){
       try{
@@ -139,13 +131,6 @@ function connect() {
   };
 }
 $('audio').onclick=async()=>{audio ||= new AudioContext();await audio.resume();$('audio').textContent='Alarme ativado';if(lastPending)beep();};
-$('peripherals-form').onchange=()=>{peripheralsDirty=true;$('peripherals-status').textContent='Alterações ainda não salvas';};
-$('peripherals-form').onsubmit=e=>{
-  e.preventDefault();
-  const settings=Object.fromEntries(['keyboard','mouse'].map(key=>[key,$('allow-'+key).checked]));
-  if(!send({type:'peripherals',settings}))return;
-  savingPeripherals=true;updatePeripherals();$('peripherals-status').textContent='Salvando autorizações…';
-};
 $('windows-key').onpointerdown=e=>e.preventDefault();
 $('windows-key').onclick=()=>{
   input({kind:'release'});

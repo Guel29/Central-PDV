@@ -2,12 +2,7 @@
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SmartCentral — Smart PDV Control</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
 <body><header><div><small>REDE LOCAL · CENTRAL DE OPERAÇÕES</small><h1>SMART <span>PDV</span> CONTROL</h1></div><div id="connection">Conectando à Central</div></header>
 <main><section id="workspace"><nav><strong id="summary"></strong><button id="audio">Ativar alarme sonoro</button></nav>
-<details id="peripherals-panel"><summary>Autorizações de entrada — SmartCentral</summary>
-<form id="peripherals-form" class="peripherals-form"><p>Autorize o envio de comandos da Central aos PDVs em atendimento.</p><div class="permission-options">
-<label><input id="allow-keyboard" type="checkbox">Teclado remoto e leitor em modo teclado</label>
-<label><input id="allow-mouse" type="checkbox">Mouse remoto</label></div>
-<button id="save-peripherals" type="submit" disabled>Salvar autorizações</button><span id="peripherals-status" role="status">Aguardando conexão</span>
-<p>As opções valem para todos os atendimentos desta Central. O leitor em modo teclado segue a autorização de teclado na imagem remota. Outros dispositivos USB ainda não são compartilhados como dispositivos no PDV.</p></form></details>
+
 <p class="legend">● Amarelo: disponível · ● Verde: liberação pendente · ● Azul: atendimento · ● Cinza: offline</p><div id="cards"></div></section>
 <dialog id="remote"><div id="remote-content"><div class="toolbar"><h2 id="remote-title"></h2><button id="windows-key" type="button">Windows no PDV</button><select id="switch" aria-label="Alternar PDV"></select><button id="fullscreen">Tela cheia</button><button id="close">Encerrar atendimento</button></div>
 <p id="agent-version" role="status"></p>

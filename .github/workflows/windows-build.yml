@@ -63,7 +63,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'smartpdv-release.md'
           @'
           Dois instaladores independentes para testes em Windows 10/11 x64.
-          Atualizacao 1.0.8: a Central mostra a versao informada pelo Agent conectado, permitindo conferir a atualizacao no PDV. Agents antigos aparecem sem versao informada. Mantem campo EAN removido, teclado fisico, Escape e Windows remoto. Nao altera o metodo de teclado nem confirma correcao da leitura do cartao fiscal no VRPDV.
+          Atualizacao 1.0.9: remove da interface o painel Autorizações de entrada e os controles de salvar teclado e mouse. Preserva as configuracoes existentes, o pareamento TLS e o controle remoto. Esta limpeza da interface nao altera o metodo de entrada nem confirma correcao da leitura do cartao fiscal no VRPDV.
           Central: dashboard local HTTPS. Agent: captura/controle Windows reais, sem console, inicialização após login.
           Cadastre e pareie somente computadores autorizados da LAN. Configure o certificado local na Central.
           Binários sem assinatura Authenticode. Esta versão é para testes; captura e entrada física precisam de validação nos computadores de destino.

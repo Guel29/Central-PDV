@@ -1,4 +1,4 @@
-# Periféricos autorizados pela SmartCentral
+# Entrada de periféricos pela SmartCentral
 
 A autorização de entrada remota fica na Central, em `central.json`:
 
@@ -6,7 +6,7 @@ A autorização de entrada remota fica na Central, em `central.json`:
 "peripherals": {"keyboard": true, "mouse": true}
 ```
 
-O painel **Autorizações de entrada — SmartCentral** controla o envio de comandos durante o atendimento pertencente à sessão da Central. A identificação dos computadores e o TLS permanecem necessários para a comunicação pela LAN.
+Na Central 1.0.9, o painel **Autorizações de entrada**, suas caixas de seleção e o botão de salvar foram removidos da interface. O teclado, o leitor em modo teclado e o mouse seguem pelo atendimento remoto. A configuração JSON anterior é preservada; novas configurações habilitam teclado e mouse por padrão. Se uma opção antiga estiver desativada, a tela remota informa isso. Para habilitá-la, encerre a Central, faça uma cópia do JSON e altere o valor correspondente para `true` antes de iniciar novamente. A política do backend, o dono do atendimento, a identificação dos computadores e o TLS permanecem necessários para a comunicação pela LAN.
 
 ## Controle direto
 
@@ -17,7 +17,7 @@ O painel **Autorizações de entrada — SmartCentral** controla o envio de coma
 
 O navegador recebe teclas e não distingue um leitor em modo teclado de um teclado comum. A autorização não representa uma lista de dispositivos físicos e não altera permissões do Windows no PDV.
 
-Na Central 1.0.7, o campo EAN, o botão de envio, o processamento separado de códigos e a autorização exclusiva de leitor foram removidos. O antigo comando `barcode` é rejeitado, inclusive quando o teclado está desativado. Em configurações anteriores, `scanner` é ignorado; salvar autorizações remove essa propriedade do JSON. O pareamento permanece.
+Na Central 1.0.7, o campo EAN, o botão de envio, o processamento separado de códigos e a autorização exclusiva de leitor foram removidos. O antigo comando `barcode` é rejeitado, inclusive quando o teclado está desativado. Em configurações anteriores, `scanner` é ignorado; o backend considera apenas teclado e mouse. O pareamento permanece.
 
 Abra o atendimento e clique no campo do aplicativo dentro da imagem remota para controlar o PDV. Escape é encaminhado quando a imagem está em foco; **Encerrar atendimento** fecha a sessão. O navegador ainda pode usar Escape para sair da tela cheia.
 
@@ -37,4 +37,4 @@ Os testes automatizados verificam transporte TLS, autorizações, identidade fí
 
 ## Versão do Agent em execução (Central 1.0.8)
 
-O card e o atendimento mostram a versão informada na conexão autenticada do Agent: 0.1.6 no legado Windows 7 ou 1.0.8 no moderno. Em Agents anteriores, aparece **Agent sem versão informada**. Esse aviso não bloqueia o controle. Versão e identificador do protocolo ficam apenas em memória e são apagados ao desconectar; não contêm códigos, credenciais ou teclas. A informação é declarada pelo próprio Agent e não certifica o binário. A instalação de outra versão não garante que uma instância anterior tenha encerrado; confirme a versão na Central após iniciar o atalho instalado.
+O card e o atendimento mostram a versão informada na conexão autenticada do Agent: 0.1.6 no legado Windows 7 ou 1.0.9 no moderno. Em Agents anteriores, aparece **Agent sem versão informada**. Esse aviso não bloqueia o controle. Versão e identificador do protocolo ficam apenas em memória e são apagados ao desconectar; não contêm códigos, credenciais ou teclas. A informação é declarada pelo próprio Agent e não certifica o binário. A instalação de outra versão não garante que uma instância anterior tenha encerrado; confirme a versão na Central após iniciar o atalho instalado.

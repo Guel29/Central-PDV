@@ -65,42 +65,20 @@ async def main():
        return
     await asyncio.wait_for(ended(),5)
     await page.locator('.card:not(.active):not(.pending)').wait_for()
-    await page.locator('#peripherals-panel > summary').click()
-    await page.locator('#allow-keyboard').uncheck()
-    await page.locator('#allow-mouse').uncheck()
-    await page.locator('#save-peripherals').click()
-    await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
-    assert central.config['peripherals']=={'keyboard':False,'mouse':False}
-    await page.locator('.card').click()
-    assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
-    await page.locator('#remote[open]').wait_for()
-    assert 'sem versão informada' in await page.locator('#agent-version').text_content()
-    await page.locator('#screen').press('1')  # Disabled keyboard must not reach the Agent.
-    assert await page.locator('#windows-key').is_disabled()
-    await page.locator('#close').focus()
-    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
-    await page.locator('#close').click()
-    await asyncio.wait_for(ended(),5)
     await page.reload()
     await page.locator('.card').wait_for()
-    assert not await page.locator('#allow-keyboard').is_checked()
-    assert not await page.locator('#allow-mouse').is_checked()
-    assert await page.locator('#barcode-form, #barcode, #send-barcode, #allow-scanner').count()==0
-    assert await page.locator('#diagnose').count()==0
-    await page.locator('#peripherals-panel > summary').click()
-    await page.locator('#allow-keyboard').check()
-    await page.locator('#save-peripherals').click()
-    await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
+    assert await page.locator('#peripherals-panel, #peripherals-form, #allow-keyboard, #allow-mouse, #save-peripherals').count()==0
+    assert await page.locator('#barcode-form, #barcode, #send-barcode, #allow-scanner, #diagnose').count()==0
     await page.locator('.card').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
     assert 'sem versão informada' in await page.locator('#agent-version').text_content()
-    assert await page.locator('#barcode').count()==0
-    for key in '0012':
+    for key in '001234567890':
      await page.locator('#screen').press(key)
+    await page.locator('#screen').press('Enter')
+    for key in '001234567890':
      for action in ('down','up'):
       assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':key,'code':'Digit'+key,'action':action}}
-    await page.locator('#screen').press('Enter')
     for action in ('down','up'):
      assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':'Enter','code':'Enter','action':action}}
     await page.locator('#close').click()
@@ -123,7 +101,7 @@ async def main():
     await page.locator('.card.offline').wait_for()
     assert errors==[],errors
     await browser.close()
-    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, teclado direto com zeros iniciais, teclado numérico e botão Windows remoto, campo EAN removido, versão do Agent ativo e reconexão, encerramento e offline; no JS errors')
+    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, painel de autorizações removido, rajada numérica direta com zeros iniciais, teclado numérico e botão Windows remoto, campo EAN removido, versão do Agent ativo e reconexão, encerramento e offline; no JS errors')
   finally:
    await runner.cleanup()
 asyncio.run(main())
