@@ -3,6 +3,7 @@ import ctypes
 import io
 from PIL import ImageGrab
 from .windows_keyboard import ScanKeyboard
+from .key_codes import PHYSICAL_SCANS
 
 
 class Desktop:
@@ -46,9 +47,20 @@ class Desktop:
                 (self.held_buttons.add if down else self.held_buttons.discard)(button)
         else:
             key = event['key']
+            physical = PHYSICAL_SCANS.get(event.get('code'))
+            if physical is not None:
+                identity = event['code']
+                down = event['action'] == 'down'
+                scan = self.held_keys.get(identity, physical)
+                self.keyboard.send(scan, down)
+                if down:
+                    self.held_keys[identity] = scan
+                else:
+                    self.held_keys.pop(identity, None)
+                return True
             special = {'Enter':13,'Escape':27,'Tab':9,'Backspace':8,'Delete':46,'ArrowLeft':37,
                        'ArrowUp':38,'ArrowRight':39,'ArrowDown':40,'Shift':16,'Control':17,
-                       'Alt':18,' ':32,'Home':36,'End':35,'PageUp':33,'PageDown':34}
+                       'Alt':18,'Meta':91,' ':32,'Home':36,'End':35,'PageUp':33,'PageDown':34}
             vk = special.get(key)
             if key.startswith('F') and key[1:].isdigit() and 1 <= int(key[1:]) <= 12:
                 vk = 111 + int(key[1:])

@@ -33,7 +33,7 @@ jobs:
         shell: pwsh
         run: |
           try {
-            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /reference:System.Windows.Forms.dll ScanKeyboard.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
+            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /main:SmartPDV.Legacy.KeyboardProbe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll ScanKeyboard.cs Agent.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
             if ($LASTEXITCODE -ne 0) {
               $details = (Get-Content keyboard-compile.log | Select-Object -Last 12) -join '%0A'
               Write-Host "::error::$details"
@@ -114,7 +114,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'win7-notes.md'
           @'
           Agent separado para Windows 7 SP1 (32 ou 64 bits), exige .NET Framework 4.8 instalado.
-          Atualizacao 0.1.4: remove a consulta de permissoes do Agent; pressao minima de tecla de 20 ms configuravel e retorno de aceite/bloqueio do Windows na Central atualizada; preserva pareamento e configuracao. Sem redirecionamento USB generico. A leitura no VRPDV continua sem correcao comprovada e precisa de teste no caixa.
+          Atualizacao 0.1.5: preserva teclas fisicas enviadas pela Central 1.0.6, incluindo teclado numerico, Enter numerico, Windows e modificadores esquerdo/direito; mantem configuracao e pareamento. Sem redirecionamento USB generico. Leitura no VRPDV/LS2208 precisa de validacao no caixa.
           Captura de tela, F11 e controle mouse/teclado nativos. Inicializacao discreta apos login do Windows.
           Pareamento com a Central pela LAN, TLS 1.2 e credencial protegida por DPAPI. Sem banco, login de aplicativo ou nuvem.
           Testes automatizados do executavel e instalador feitos em Windows moderno contra a Central real.

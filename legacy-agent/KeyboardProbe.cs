@@ -52,7 +52,29 @@ namespace SmartPDV.Legacy
                         throw new Exception("Invalid keyboard down/up at "+i);
                 }
                 if((events[events.Count-1].Flags&1)==0) throw new Exception("Missing extended flag");
-                Console.WriteLine("PASS Windows SendInput: EAN digits, Enter, extended key, matching scan codes and key releases");
+                events.Clear(); times.Clear();
+                string[] codes={"Digit1","Numpad1","Enter","NumpadEnter","ControlRight","MetaLeft","ShiftRight"};
+                string[] names={"1","1","Enter","Enter","Control","Meta","Shift"};
+                ushort[] scans={0x02,0x4f,0x1c,0xe01c,0xe01d,0xe05b,0x36};
+                var desktop=new Desktop();
+                for(int i=0;i<codes.Length;i++)
+                {
+                    desktop.Input(new Dictionary<string,object>{{"kind","key"},{"action","down"},{"key",names[i]},{"code",codes[i]}});
+                    desktop.Release();
+                    Application.DoEvents();
+                }
+                deadline=DateTime.UtcNow.AddSeconds(3);
+                while(events.Count<codes.Length*2 && DateTime.UtcNow<deadline) Application.DoEvents();
+                if(events.Count!=codes.Length*2) throw new Exception("Missing physical keyboard events");
+                for(int i=0;i<scans.Length;i++)
+                {
+                    var down=events[i*2];var up=events[i*2+1];
+                    if(down.Scan!=(uint)(scans[i]&255) || up.Scan!=down.Scan ||
+                       ((down.Flags&1)!=0)!=((scans[i]&0xff00)!=0) || ((up.Flags&1)!=0)!=((scans[i]&0xff00)!=0) ||
+                       (down.Flags&128)!=0 || (up.Flags&128)==0)
+                        throw new Exception("Physical scan code mismatch: "+codes[i]);
+                }
+                Console.WriteLine("PASS Windows SendInput: EAN, physical keypad vs top-row, Enter vs keypad Enter, sided modifiers, Windows key and release");
                 return 0;
             }
             finally { UnhookWindowsHookEx(handle); GC.KeepAlive(callback); }

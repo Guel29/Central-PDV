@@ -62,6 +62,25 @@ def test_native_desktop_scan_codes_and_release():
             assert up[3]-down[3] >= .019
         assert events[-4][2] & 1 and events[-3][2] & 1  # Extended left arrow.
         assert not desktop.held_keys
+        events.clear()
+        physical=[('1','Digit1',0x02),('1','Numpad1',0x4f),('Enter','Enter',0x1c),
+                  ('Enter','NumpadEnter',0xe01c),('Control','ControlRight',0xe01d),
+                  ('Meta','MetaLeft',0xe05b),('Shift','ShiftRight',0x36)]
+        for key,code,scan in physical:
+            desktop.input(dict(kind='key',action='down',key=key,code=code))
+            desktop.input(dict(kind='key',action='up',key=key,code=code))
+        deadline=time.monotonic()+3
+        while len(events)<2*len(physical) and time.monotonic()<deadline:
+            while user.PeekMessageW(c.byref(message),None,0,0,1):
+                user.TranslateMessage(c.byref(message));user.DispatchMessageW(c.byref(message))
+            time.sleep(.001)
+        assert len(events)==2*len(physical),events
+        for index,(_,_,scan) in enumerate(physical):
+            down,up=events[index*2:index*2+2]
+            assert down[1]==up[1]==scan&255
+            assert bool(down[2]&1)==bool(up[2]&1)==bool(scan&0xff00)
+            assert not down[2]&128 and up[2]&128
+        assert not desktop.held_keys
     finally:
         user.UnhookWindowsHookEx(hook)
         desktop.close()

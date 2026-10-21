@@ -18,6 +18,18 @@ Use o painel **Autorizações de entrada — SmartCentral** para salvar essas op
 
 O navegador recebe teclas; ele não identifica se vieram de um teclado ou do LS2208, nem de qual porta USB. O campo EAN separa a leitura pelo destino na interface. A permissão não é uma lista de dispositivos físicos e não altera permissões do Windows no computador remoto.
 
+## Teclas físicas (Central 1.0.6 / Agent legado 0.1.5)
+
+O usuário delimitou o escopo a LS2208 em modo teclado, teclado e mouse. O projeto trata essas entradas pelo controle remoto existente.
+
+O dashboard passa a enviar `KeyboardEvent.code` junto de `key`. Antes, tanto `Digit1` quanto `Numpad1` viravam o caractere `1`, reinterpretado pelo Agent como a tecla da fileira superior. Agora os Agents preservam os scan codes físicos correspondentes, incluindo Enter do teclado numérico e os lados dos modificadores. O botão **Windows no PDV** envia a tecla Windows ao computador remoto sem depender de capturar o atalho local do navegador.
+
+O campo EAN preserva a identificação física dos dígitos quando a leitura é digitada continuamente no fim do campo e termina em Enter. Uma colagem ou edição manual utiliza o encaminhamento anterior por caracteres. Códigos e identificação de teclas continuam apenas em memória/trânsito. Central e Agent antigos continuam usando o formato anterior; atualize ambos para testar a preservação física.
+
+O estado Num Lock/Caps Lock pertence ao Windows de cada computador e ainda não é sincronizado automaticamente. Para o teclado numérico, confira Num Lock nos dois computadores. Preservar scan codes não cria um dispositivo USB no PDV, nem garante que o VRPDV consuma entrada sintetizada. O teste com VRPDV/LS2208 real continua necessário.
+
+Os testes incluem eventos de teclado gerados pelo navegador, transporte TLS, distinção de scan codes reais por hooks Windows nos dois Agents e liberação de modificadores. O hook existe somente nos executáveis/testes de CI.
+
 ## Compartilhamento USB completo: pendente
 
 Fazer o PDV enxergar um USB conectado à Central como um dispositivo local requer captura de requisições USB na Central, transporte autenticado/criptografado pela LAN e um controlador USB virtual/driver no PDV, com suporte ao Windows e ao dispositivo. O uso do dispositivo na Central pode precisar ser exclusivo durante o compartilhamento.
@@ -30,4 +42,4 @@ Os Agents continuam usando `SendInput` com scan codes. O campo EAN utiliza o mes
 
 O usuário confirmou que a leitura funciona no VRPDV localmente e pelo AnyDesk instalado, mas falha pelo SmartPDV. Essa falha permanece em investigação. Os testes automatizados cobrem o transporte, as autorizações, a ordem dos dígitos e os eventos nativos Windows; não incluem o leitor físico nem o VRPDV.
 
-Atualização: Central/Agent Windows 10/11 x64 1.0.5 e Agent Windows 7 SP1/.NET 4.8 0.1.4. Encerre os aplicativos antes de atualizar e use a mesma conta Windows para preservar o pareamento existente.
+Atualização: Central/Agent Windows 10/11 x64 1.0.6 e Agent Windows 7 SP1/.NET 4.8 0.1.5. Encerre os aplicativos antes de atualizar e use a mesma conta Windows para preservar o pareamento existente.

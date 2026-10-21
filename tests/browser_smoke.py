@@ -39,9 +39,18 @@ async def main():
     await page.locator('.card.pending').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
+    await page.locator('#windows-key').click()
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
+    for action in ('down','up'):
+     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':'Meta','code':'MetaLeft','action':action}}
     await page.locator('#screen').press('Enter')
-    assert (await asyncio.wait_for(commands.get(),5))['type']=='input'
-    assert (await asyncio.wait_for(commands.get(),5))['type']=='input'
+    for action in ('down','up'):
+     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':'Enter','code':'Enter','action':action}}
+    await page.locator('#screen').press('Numpad1')
+    for action in ('down','up'):
+     event=(await asyncio.wait_for(commands.get(),5))['event']
+     assert event['code']=='Numpad1' and event['action']==action
+
     await page.locator('#close').click()
     async def ended():
      while True:
@@ -72,6 +81,22 @@ async def main():
      assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':event}
     await page.wait_for_function("() => document.querySelector('#barcode-status').textContent.includes('Confirme')")
     assert await page.locator('#barcode').input_value()==''
+    # Real browser keyboard events retain keypad identity in the EAN field.
+    physical='0012'
+    # Headless Chromium has NumLock off; provide trusted CDP digit events
+    # with the physical keypad code, as produced with NumLock enabled.
+    cdp=await page.context.new_cdp_session(page)
+    for digit in physical:
+     packet=dict(code='Numpad'+digit,key=digit,windowsVirtualKeyCode=96+int(digit),isKeypad=True,location=3)
+     await cdp.send('Input.dispatchKeyEvent',dict(type='keyDown',text=digit,**packet))
+     await cdp.send('Input.dispatchKeyEvent',dict(type='keyUp',**packet))
+    await page.locator('#barcode').press('NumpadEnter')
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
+    for key,physical_code in zip([*physical,'Enter'],[*['Numpad'+digit for digit in physical],'NumpadEnter']):
+     for action in ('down','up'):
+      assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':key,'action':action,'code':physical_code}}
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
+    await page.wait_for_function("() => document.querySelector('#barcode-status').textContent.includes('Confirme')")
     await page.locator('#close').click()
     await asyncio.wait_for(ended(),5)
     await page.locator('#allow-scanner').uncheck()
@@ -94,7 +119,7 @@ async def main():
     await page.locator('.card.offline').wait_for()
     assert errors==[],errors
     await browser.close()
-    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, EAN com zeros iniciais, leitor desativado, encerramento e offline; no JS errors')
+    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, EAN com zeros iniciais e teclas físicas do teclado numérico, botão Windows remoto, leitor desativado, encerramento e offline; no JS errors')
   finally:
    await runner.cleanup()
 asyncio.run(main())

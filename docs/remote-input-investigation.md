@@ -17,3 +17,5 @@ Referencias publicas para verificacao externa das regras Windows (consulta web i
 - https://learn.microsoft.com/en-us/windows/win32/api/sas/nf-sas-sendsas
 
 A causa da rejeicao pelo VRPDV continua sem comprovacao. A consulta removida nao chegou a produzir um resultado informado pelo cliente. Os testes CI nao substituem o teste no VRPDV e com o leitor fisico; nenhuma equivalencia de entrada com o AnyDesk foi verificada.
+
+Na revisao 1.0.6 / legado 0.1.5 foi encontrada uma perda verificavel de identidade: `key` sozinho faz `Digit1` e `Numpad1` chegarem iguais ao Agent. A Central passa a transportar `code`, e os dois Agents o convertem no scan code fisico correspondente. A leitura continua no mesmo mecanismo SendInput. Nao foi demonstrado que essa perda era a causa da rejeicao pelo VRPDV; a verificacao no caixa permanece pendente.

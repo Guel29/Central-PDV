@@ -6,6 +6,7 @@ let alarm = {enabled:true,repeat_seconds:10}, lastPending = false, lastMove = 0;
 const cards = new Map();
 let peripherals = {keyboard:true,scanner:true,mouse:true};
 let peripheralsDirty = false, savingPeripherals = false, barcodePending = false;
+let barcodeCodes = [], barcodeText = '', barcodeEnterCode = 'Enter';
 let knownPending = new Set();
 function send(data) { if(socket?.readyState !== WebSocket.OPEN)return false;socket.send(JSON.stringify(data));return true; }
 function input(event) {
@@ -18,11 +19,14 @@ function updatePeripherals() {
   if(!peripheralsDirty && !savingPeripherals)for(const key of ['keyboard','scanner','mouse'])$('allow-'+key).checked=peripherals[key];
   for(const key of ['keyboard','scanner','mouse'])$('allow-'+key).disabled=savingPeripherals || socket?.readyState!==WebSocket.OPEN;
   $('save-peripherals').disabled=savingPeripherals || socket?.readyState!==WebSocket.OPEN;
+  $('windows-key').disabled=!peripherals.keyboard || selected===null;
   $('barcode').disabled=$('send-barcode').disabled=!peripherals.scanner || barcodePending || selected===null;
   $('control-help').textContent=`Teclado ${peripherals.keyboard?'autorizado':'desativado'} · Mouse ${peripherals.mouse?'autorizado':'desativado'} · Clique na imagem para controlar · Esc sai da tela cheia`;
   if(!peripherals.scanner)$('barcode-status').textContent='Leitor EAN desativado nas autorizações da SmartCentral.';
 }
+function resetBarcodeTrace() {barcodeCodes=[];barcodeText='';barcodeEnterCode='Enter';}
 function resetBarcode() {
+  resetBarcodeTrace();
   barcodePending=false;$('barcode').value='';
   $('barcode-status').textContent='Selecione o campo de venda no PDV e depois leia neste campo da Central.';
   updatePeripherals();
@@ -114,7 +118,7 @@ function connect() {
       $('peripherals-status').textContent='Autorizações salvas neste computador';
     }
     else if(data.type==='barcode_sent' && selected===data.number){
-      barcodePending=false;$('barcode').value='';updatePeripherals();$('barcode').focus();
+      barcodePending=false;$('barcode').value='';resetBarcodeTrace();updatePeripherals();$('barcode').focus();
       $('barcode-status').textContent='EAN encaminhado ao Agent. Confirme a leitura no aplicativo do PDV.';
     }
     else if(data.type==='input_status' && selected===data.number){
@@ -153,12 +157,32 @@ $('peripherals-form').onsubmit=e=>{
   if(!send({type:'peripherals',settings}))return;
   savingPeripherals=true;updatePeripherals();$('peripherals-status').textContent='Salvando autorizações…';
 };
+$('barcode').onkeydown=e=>{
+  if(e.key==='Enter'){barcodeEnterCode=e.code==='NumpadEnter'?'NumpadEnter':'Enter';return;}
+  const field=$('barcode');
+  if(/^[0-9]$/.test(e.key) && [ 'Digit'+e.key, 'Numpad'+e.key ].includes(e.code)
+      && !e.ctrlKey && !e.altKey && !e.metaKey && field.value===barcodeText
+      && field.selectionStart===field.value.length && field.selectionEnd===field.value.length){
+    barcodeText+=e.key;barcodeCodes.push(e.code);
+  }else if(e.key.length===1 || ['Backspace','Delete'].includes(e.key) || e.ctrlKey || e.metaKey){
+    barcodeText=null;barcodeCodes=[];
+  }
+};
+$('barcode').oninput=()=>{if(!$('barcode').value)resetBarcodeTrace();else if($('barcode').value!==barcodeText){barcodeText=null;barcodeCodes=[];}};
 $('barcode-form').onsubmit=e=>{
   e.preventDefault();
   const code=$('barcode').value;
   if(selected===null || !peripherals.scanner || barcodePending || !/^[0-9]{1,32}$/.test(code))return;
-  if(!send({type:'barcode',number:selected,code}))return;
+  const message={type:'barcode',number:selected,code};
+  if(barcodeText===code && barcodeCodes.length===code.length){message.codes=barcodeCodes;message.enter_code=barcodeEnterCode;}
+  if(!send(message))return;
   barcodePending=true;updatePeripherals();$('barcode-status').textContent='Encaminhando ao Agent…';
+};
+$('windows-key').onpointerdown=e=>e.preventDefault();
+$('windows-key').onclick=()=>{
+  input({kind:'release'});
+  for(const action of ['down','up'])input({kind:'key',key:'Meta',code:'MetaLeft',action});
+  $('screen').focus();
 };
 $('close').onclick=endRemote;$('remote').addEventListener('cancel',e=>{e.preventDefault();endRemote();});
 $('switch').onchange=e=>openRemote(Number(e.target.value));
@@ -178,7 +202,7 @@ function point(e,action){
 screen.onpointermove=e=>{if(performance.now()-lastMove>35){point(e,'move');lastMove=performance.now();}};
 screen.onpointerdown=e=>{e.preventDefault();screen.focus();screen.setPointerCapture(e.pointerId);point(e,'down');};
 screen.onpointerup=e=>{e.preventDefault();point(e,'up');};screen.oncontextmenu=e=>e.preventDefault();
-for(const action of ['down','up'])screen.addEventListener('key'+action,e=>{if(e.key==='Escape')return;e.preventDefault();input({kind:'key',action,key:e.key});});
+for(const action of ['down','up'])screen.addEventListener('key'+action,e=>{if(e.key==='Escape')return;e.preventDefault();input({kind:'key',action,key:e.key,code:e.code});});
 screen.onblur=()=>input({kind:'release'});
 screen.onpointercancel=()=>input({kind:'release'});
 screen.addEventListener('wheel',e=>{e.preventDefault();input({kind:'wheel',delta:e.deltaY<0?120:-120});},{passive:false});

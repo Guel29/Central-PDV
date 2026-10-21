@@ -104,6 +104,18 @@ def test_central_authorizes_input_and_preserves_barcode_order(tmp_path):
                 for event in events:
                     assert (await agent.receive_json())=={'type':'input','event':event}
                 await message_type(dashboard,'barcode_sent')
+                physical=[f'Numpad{digit}' for digit in code]
+                for invalid in ({'codes':physical[:-1]},{'codes':['Digit9']*len(code)},
+                                {'codes':[None]*len(code)},{'enter_code':[]},{'codes':'not an array'}):
+                    await dashboard.send_json({'type':'barcode','number':1,'code':code,**invalid})
+                    await message_type(dashboard,'error')
+                await dashboard.send_json({'type':'barcode','number':1,'code':code,'codes':physical,'enter_code':'NumpadEnter'})
+                assert (await agent.receive_json())['event']=={'kind':'release'}
+                for key,physical_code in zip([*code,'Enter'],[*physical,'NumpadEnter']):
+                    for action in ('down','up'):
+                        assert (await agent.receive_json())['event']=={'kind':'key','key':key,'action':action,'code':physical_code}
+                assert (await agent.receive_json())['event']=={'kind':'release'}
+                await message_type(dashboard,'barcode_sent')
                 permissions={'keyboard':True,'scanner':False,'mouse':False}
                 await dashboard.send_json({'type':'peripherals','settings':permissions})
                 await message_type(dashboard,'peripherals_saved')
@@ -317,7 +329,9 @@ def test_log_rotation_retention(tmp_path):
     {'kind':'mouse','action':'move','x':-1,'y':.5},
     {'kind':'mouse','action':'move','x':float('nan'),'y':.5},
     {'kind':'key','action':'execute','key':'Enter'},
-    {'kind':'key','action':'down','key':'x'*500},None])
+    {'kind':'key','action':'down','key':'x'*500},
+    {'kind':'key','action':'down','key':'1','code':[]},
+    {'kind':'key','action':'down','key':'1','code':'Numpad1\n'},None])
 def test_input_validation(event):
     assert not Central.valid_input(event)
 

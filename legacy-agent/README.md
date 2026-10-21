@@ -34,3 +34,5 @@ Na versao 0.1.4, a consulta de permissoes dos processos foi removida do Agent. A
 ### Atualizacao 0.1.2
 
 Pressao minima de tecla de 20 ms, ajustavel no JSON com `keyboard_min_press_ms` entre 0 e 100. A Central 1.0.3 mostra se o Windows aceitou ou recusou a entrada, sem coletar o codigo EAN ou as teclas. A recusa nao encerra a conexao. Isso permite diferenciar bloqueio do Windows de entrada aceita sem resposta do aplicativo. Ainda e necessario testar o VRPDV real; nao foi homologado por estes testes.
+
+A versao 0.1.5 reconhece as identificacoes fisicas enviadas pela Central 1.0.6: teclado numerico, Enter numerico, lados dos modificadores e tecla Windows. Continua aceitando a Central anterior. O teste nativo compila o proprio Desktop do Agent e observa scan codes e liberacoes reais. Nao comprova compatibilidade com o VRPDV fisico.

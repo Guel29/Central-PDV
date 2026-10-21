@@ -255,11 +255,11 @@ namespace SmartPDV.Legacy
         [DllImport("user32.dll")] static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern short VkKeyScan(char key);
         readonly object inputLock = new object();
-        readonly Dictionary<byte, ushort> keys = new Dictionary<byte, ushort>();
+        readonly Dictionary<string, ushort> keys = new Dictionary<string, ushort>();
         readonly HashSet<int> buttons = new HashSet<int>();
         readonly Dictionary<string, byte> special = new Dictionary<string, byte> {
             {"Enter",13},{"Escape",27},{"Tab",9},{"Backspace",8},{"Delete",46},{"ArrowLeft",37},{"ArrowUp",38},
-            {"ArrowRight",39},{"ArrowDown",40},{"Shift",16},{"Control",17},{"Alt",18},{" ",32},
+            {"ArrowRight",39},{"ArrowDown",40},{"Shift",16},{"Control",17},{"Alt",18},{"Meta",91},{" ",32},
             {"Home",36},{"End",35},{"PageUp",33},{"PageDown",34} };
         public string Capture(bool active)
         {
@@ -307,18 +307,25 @@ namespace SmartPDV.Legacy
                 }
                 else if (kind == "key" && (action == "down" || action == "up"))
                 {
-                    string key = (string)e["key"]; byte vk; int f;
-                    if (!special.TryGetValue(key, out vk))
+                    string key = (string)e["key"]; byte vk; int f; object raw;
+                    ushort scan, held; string identity;
+                    if(e.TryGetValue("code",out raw) && ScanKeyboard.TryPhysical(raw as string,out scan))
+                        identity="physical:"+(string)raw;
+                    else
                     {
-                        if (key.StartsWith("F", StringComparison.Ordinal) && int.TryParse(key.Substring(1), out f) && f >= 1 && f <= 12) vk = (byte)(111 + f);
-                        else if (key.Length == 1) { short code = VkKeyScan(key[0]); if (code == -1) return false; vk = (byte)(code & 255); }
-                        else return false;
+                        if (!special.TryGetValue(key, out vk))
+                        {
+                            if (key.StartsWith("F", StringComparison.Ordinal) && int.TryParse(key.Substring(1), out f) && f >= 1 && f <= 12) vk = (byte)(111 + f);
+                            else if (key.Length == 1) { short mapped = VkKeyScan(key[0]); if (mapped == -1) return false; vk = (byte)(mapped & 255); }
+                            else return false;
+                        }
+                        identity="vk:"+vk;
+                        scan=ScanKeyboard.Resolve(vk);
                     }
-                    ushort scan;
-                    if (!keys.TryGetValue(vk, out scan)) scan = ScanKeyboard.Resolve(vk);
+                    if(keys.TryGetValue(identity,out held)) scan=held;
                     bool down = action == "down";
                     ScanKeyboard.Send(scan, down);
-                    if (down) keys[vk] = scan; else keys.Remove(vk);
+                    if (down) keys[identity] = scan; else keys.Remove(identity);
                     return true;
                 }
             }

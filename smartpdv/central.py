@@ -190,10 +190,20 @@ class Central:
                                 continue
                             if not isinstance(code,str) or not 1 <= len(code) <= 32 or any(ch not in '0123456789' for ch in code):
                                 raise ValueError('Código inválido')
+                            codes = data.get('codes')
+                            enter = data.get('enter_code','Enter')
+                            if (codes is not None and (not isinstance(codes,list) or len(codes) != len(code)
+                                    or any(not isinstance(physical,str) or physical not in (f'Digit{digit}',f'Numpad{digit}') for digit,physical in zip(code,codes)))):
+                                raise ValueError('Teclas inválidas')
+                            if enter not in ('Enter','NumpadEnter'):
+                                raise ValueError('Enter inválido')
                             await agent.send_json({'type':'input','event':{'kind':'release'}})
-                            for key in [*code,'Enter']:
+                            for index,key in enumerate([*code,'Enter']):
                                 for action in ('down','up'):
-                                    await agent.send_json({'type':'input','event':{'kind':'key','action':action,'key':key}})
+                                    event = {'kind':'key','action':action,'key':key}
+                                    if codes is not None:
+                                        event['code'] = codes[index] if index < len(code) else enter
+                                    await agent.send_json({'type':'input','event':event})
                             await agent.send_json({'type':'input','event':{'kind':'release'}})
                             await ws.send_json({'type':'barcode_sent','number':s['number']})
                             continue
@@ -236,8 +246,10 @@ class Central:
         if event.get('kind') == 'mouse':
             return (event.get('action') in ('move', 'down', 'up') and event.get('button', 0) in (0, 2)
                     and all(type(event.get(k)) in (int, float) and 0 <= event[k] <= 1 for k in ('x', 'y')))
+        code = event.get('code','')
         return (event.get('kind') == 'key' and event.get('action') in ('down', 'up')
-                and isinstance(event.get('key'), str) and len(event['key']) <= 24)
+                and isinstance(event.get('key'), str) and len(event['key']) <= 24
+                and isinstance(code,str) and len(code) <= 32 and (not code or code.isascii() and code.isalnum()))
 
     async def end(self, s, result):
         if not s['active']:
