@@ -102,7 +102,7 @@ namespace SmartPDV.Diagnostics
                 Pump(200); capture.Stop("manual");
                 var report = capture.Report(); Summary.Parse(Summary.Serializer().Serialize(report));
                 var streams = (Dictionary<string, object>)report["streams"];
-                Check(streams.ContainsKey("ll_injected"), "Observe actual injected Windows input");
+                Check(streams.ContainsKey("ll_injected"), "Observe actual injected Windows input: failed=" + capture.ObservationFailed + " events=" + summary.Events + " reason=" + capture.StopReason + " summary=" + Summary.Serializer().Serialize(report));
                 var stream = (Dictionary<string, object>)streams["ll_injected"];
                 Check((int)stream["digit"] == 3 && (int)stream["enter"] == 1 && (int)stream["up"] == 4, "Native observer category counts");
                 Check(!capture.ObservationFailed, "No observer callback failure");
