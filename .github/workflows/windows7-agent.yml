@@ -31,13 +31,22 @@ jobs:
       - name: Verify native scan code keyboard input
         shell: pwsh
         run: |
-          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:legacy-agent/KeyboardProbe.exe /reference:System.Windows.Forms.dll legacy-agent/ScanKeyboard.cs legacy-agent/KeyboardProbe.cs
-          if ($LASTEXITCODE -ne 0) { throw 'Keyboard probe compilation failed' }
-          & ./legacy-agent/KeyboardProbe.exe 2>&1 | Tee-Object keyboard-probe.log
-          if ($LASTEXITCODE -ne 0) {
-            $details = (Get-Content keyboard-probe.log | Select-Object -Last 12) -join '%0A'
-            Write-Host "::error::$details"
-            throw 'Native keyboard verification failed'
+          try {
+            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:legacy-agent/KeyboardProbe.exe /reference:System.Windows.Forms.dll legacy-agent/ScanKeyboard.cs legacy-agent/KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
+            if ($LASTEXITCODE -ne 0) {
+              $details = (Get-Content keyboard-compile.log | Select-Object -Last 12) -join '%0A'
+              Write-Host "::error::$details"
+              throw 'Keyboard probe compilation failed'
+            }
+            & ./legacy-agent/KeyboardProbe.exe 2>&1 | Tee-Object keyboard-probe.log
+            if ($LASTEXITCODE -ne 0) {
+              $details = (Get-Content keyboard-probe.log | Select-Object -Last 12) -join '%0A'
+              Write-Host "::error::$details"
+              throw 'Native keyboard verification failed'
+            }
+          } catch {
+            Write-Host "::error::Keyboard verification: $($_.Exception.Message)"
+            throw
           }
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
