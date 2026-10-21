@@ -29,16 +29,17 @@ jobs:
             throw 'Compilation failed'
           }
       - name: Verify native scan code keyboard input
+        working-directory: legacy-agent
         shell: pwsh
         run: |
           try {
-            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:legacy-agent/KeyboardProbe.exe /reference:System.Windows.Forms.dll legacy-agent/ScanKeyboard.cs legacy-agent/KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
+            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /reference:System.Windows.Forms.dll ScanKeyboard.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
             if ($LASTEXITCODE -ne 0) {
               $details = (Get-Content keyboard-compile.log | Select-Object -Last 12) -join '%0A'
               Write-Host "::error::$details"
               throw 'Keyboard probe compilation failed'
             }
-            & ./legacy-agent/KeyboardProbe.exe 2>&1 | Tee-Object keyboard-probe.log
+            & ./KeyboardProbe.exe 2>&1 | Tee-Object keyboard-probe.log
             if ($LASTEXITCODE -ne 0) {
               $details = (Get-Content keyboard-probe.log | Select-Object -Last 12) -join '%0A'
               Write-Host "::error::$details"
