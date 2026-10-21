@@ -52,6 +52,105 @@ async def local_session(client, url, fingerprint):
     return {'Origin':url, 'Cookie':'session='+response.cookies['session'].value}
 
 
+async def message_type(ws, expected):
+    async def receive():
+        while True:
+            message = await ws.receive_json()
+            if message['type'] == expected:
+                return message
+    return await asyncio.wait_for(receive(), 5)
+
+
+def test_central_authorizes_input_and_preserves_barcode_order(tmp_path):
+    async def scenario():
+        pin=Fingerprint(bytes.fromhex(prepare(tmp_path)))
+        central,runner,port=await start(tmp_path)
+        url=f'https://127.0.0.1:{port}'
+        try:
+            async with ClientSession() as client:
+                agent=await client.ws_connect(url+'/agent',ssl=pin,headers={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN})
+                dashboard=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
+                await state(dashboard,lambda s:s['online'])
+                await agent.send_json({'type':'request'})
+                await state(dashboard,lambda s:s['pending'])
+                await dashboard.send_json({'type':'start','number':1})
+                assert (await agent.receive_json())=={'type':'session','active':True}
+                await state(dashboard,lambda s:s['active'])
+                down={'kind':'key','key':'Control','action':'down'}
+                await dashboard.send_json({'type':'input','number':1,'event':down})
+                assert (await agent.receive_json())['event']==down
+                # Revoking permissions releases held keys/buttons on the PDV.
+                permissions={'keyboard':False,'scanner':True,'mouse':False}
+                await dashboard.send_json({'type':'peripherals','settings':permissions})
+                assert (await agent.receive_json())=={'type':'input','event':{'kind':'release'}}
+                await message_type(dashboard,'peripherals_saved')
+                config=load_json(tmp_path/'central.json')
+                assert config['peripherals']==permissions
+                assert config['pdvs']==central.config['pdvs']
+                assert Central(tmp_path).config['peripherals']==permissions
+                for event in (down,{'kind':'mouse','action':'down','x':.5,'y':.5,'button':0},{'kind':'wheel','delta':120}):
+                    await dashboard.send_json({'type':'input','number':1,'event':event})
+                await dashboard.send_json({'type':'input','number':1,'event':{'kind':'release'}})
+                assert (await agent.receive_json())=={'type':'input','event':{'kind':'release'}}
+                # Dedicated scanner path is independent of the keyboard flag.
+                for invalid in ('',123,'1\n2','１23','0'*33):
+                    await dashboard.send_json({'type':'barcode','number':1,'code':invalid})
+                    await message_type(dashboard,'error')
+                code='0012345678901'
+                await dashboard.send_json({'type':'barcode','number':1,'code':code})
+                events=[{'kind':'release'}]
+                events.extend({'kind':'key','action':action,'key':key} for key in [*code,'Enter'] for action in ('down','up'))
+                events.append({'kind':'release'})
+                for event in events:
+                    assert (await agent.receive_json())=={'type':'input','event':event}
+                await message_type(dashboard,'barcode_sent')
+                permissions={'keyboard':True,'scanner':False,'mouse':False}
+                await dashboard.send_json({'type':'peripherals','settings':permissions})
+                await message_type(dashboard,'peripherals_saved')
+                await dashboard.send_json({'type':'barcode','number':1,'code':code})
+                assert 'desativado' in (await message_type(dashboard,'error'))['message']
+                await dashboard.send_json({'type':'input','number':1,'event':down})
+                assert (await agent.receive_json())['event']==down
+                # No authorization for generic USB transport is advertised or accepted.
+                await dashboard.send_json([])
+                await message_type(dashboard,'error')
+                await dashboard.send_json({'type':'peripherals','settings':{**permissions,'usb_all':True}})
+                await message_type(dashboard,'error')
+                assert load_json(tmp_path/'central.json')['peripherals']==permissions
+                await dashboard.send_json({'type':'end','number':1,'result':'Liberado'})
+                assert (await agent.receive_json())=={'type':'session','active':False}
+                await state(dashboard,lambda s:not s['active'])
+                assert code not in (tmp_path/'central.json').read_text()
+                for log in (tmp_path/'logs').glob('*.jsonl'):
+                    assert code not in log.read_text()
+                await dashboard.close()
+                await agent.close()
+        finally:
+            await runner.cleanup()
+    asyncio.run(scenario())
+
+
+def test_authorization_save_failure_keeps_previous_settings(tmp_path,monkeypatch):
+    def failed_write(*args):
+        raise OSError('storage unavailable')
+    async def scenario():
+        pin=Fingerprint(bytes.fromhex(prepare(tmp_path)))
+        central,runner,port=await start(tmp_path)
+        url=f'https://127.0.0.1:{port}'
+        monkeypatch.setattr('smartpdv.central.atomic_json',failed_write)
+        try:
+            async with ClientSession() as client:
+                dashboard=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
+                await dashboard.send_json({'type':'peripherals','settings':{'keyboard':False,'scanner':False,'mouse':False}})
+                assert 'anteriores' in (await message_type(dashboard,'error'))['message']
+                assert central.config['peripherals']=={'keyboard':True,'scanner':True,'mouse':True}
+                assert 'peripherals' not in load_json(tmp_path/'central.json')
+                await dashboard.close()
+        finally:
+            await runner.cleanup()
+    asyncio.run(scenario())
+
+
 def test_tls_auth_and_full_workflow(tmp_path):
     async def scenario():
         pin = Fingerprint(bytes.fromhex(prepare(tmp_path)))
@@ -83,12 +182,6 @@ def test_tls_auth_and_full_workflow(tmp_path):
                 event={'kind':'mouse','action':'move','x':.5,'y':.4,'button':0}
                 await dashboard.send_json({'type':'input','number':1,'event':event})
                 assert await agent.receive_json() == {'type':'input','event':event}
-                await dashboard.send_json({'type':'diagnose','number':1})
-                assert await agent.receive_json()=={'type':'input_diagnostics'}
-                diagnostic={'type':'input_diagnostics','agent_version':'0.1.3','agent_integrity':'medium','target_integrity':'high',
-                            'target_name':'VRPDV.exe','target_pid':123,'query_error':0,'comparison':'agent_lower'}
-                await agent.send_json({**diagnostic,'ean':'not forwarded'})
-                assert await dashboard.receive_json()=={**diagnostic,'number':1}
                 await agent.send_json({'type':'input_status','accepted':False,'error_code':5})
                 assert await dashboard.receive_json() == {'type':'input_status','number':1,'accepted':False,'error_code':5}
                 await agent.send_json({'type':'input_status','accepted':'untrusted','error_code':5})
@@ -128,6 +221,10 @@ def test_permissions_and_session_ownership(tmp_path):
                 while (await observer.receive_json())['type'] != 'error':
                     pass
                 assert central.state[1]['owner']==expected_owner
+                await observer.send_json({'type':'barcode','number':1,'code':'0012345678901'})
+                await state(observer,lambda s:s['active'])
+                await owner.send_json({'type':'input','number':1,'event':{'kind':'release'}})
+                assert (await agent.receive_json())=={'type':'input','event':{'kind':'release'}}
                 await owner.close()
                 assert not (await agent.receive_json())['active']
                 await observer.close()
@@ -321,11 +418,3 @@ def test_input_rejection_report_keeps_remote_session_connected(tmp_path):
             await asyncio.gather(task,return_exceptions=True)
             await runner.cleanup()
     asyncio.run(scenario())
-
-
-def test_diagnostic_payload_has_only_context_not_keys():
-    report={'type':'input_diagnostics','agent_version':'0.1.3','agent_integrity':'medium',
-            'target_integrity':'high','target_name':'VRPDV.exe','target_pid':123,'query_error':0,'comparison':'agent_lower'}
-    assert Central.valid_diagnostic({**report,'ean':'must not be forwarded','token':'must not be forwarded'})==report
-    for update in ({'agent_integrity':[]},{'agent_version':None},{'target_pid':True},{'target_name':'x\nsecret'}, {'comparison':'arbitrary'}):
-        assert Central.valid_diagnostic({**report,**update}) is None

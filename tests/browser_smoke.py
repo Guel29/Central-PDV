@@ -51,12 +51,50 @@ async def main():
        return
     await asyncio.wait_for(ended(),5)
     await page.locator('.card:not(.active):not(.pending)').wait_for()
+    await page.locator('#peripherals-panel > summary').click()
+    await page.locator('#allow-keyboard').uncheck()
+    await page.locator('#allow-mouse').uncheck()
+    await page.locator('#save-peripherals').click()
+    await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
+    assert central.config['peripherals']=={'keyboard':False,'mouse':False,'scanner':True}
+    await page.locator('.card').click()
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
+    await page.locator('#remote[open]').wait_for()
+    await page.locator('#screen').press('1')  # Disabled keyboard must not reach the Agent.
+    code='0012345678901'
+    await page.locator('#barcode').fill(code)
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}  # Screen blur.
+    await page.locator('#barcode').press('Enter')
+    expected=[{'kind':'release'}]
+    expected.extend({'kind':'key','action':action,'key':key} for key in [*code,'Enter'] for action in ('down','up'))
+    expected.append({'kind':'release'})
+    for event in expected:
+     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':event}
+    await page.wait_for_function("() => document.querySelector('#barcode-status').textContent.includes('Confirme')")
+    assert await page.locator('#barcode').input_value()==''
+    await page.locator('#close').click()
+    await asyncio.wait_for(ended(),5)
+    await page.locator('#allow-scanner').uncheck()
+    await page.locator('#save-peripherals').click()
+    await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
+    await page.locator('.card').click()
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
+    await page.locator('#remote[open]').wait_for()
+    assert await page.locator('#barcode').is_disabled()
+    await page.locator('#close').click()
+    await asyncio.wait_for(ended(),5)
+    await page.reload()
+    await page.locator('.card').wait_for()
+    assert not await page.locator('#allow-keyboard').is_checked()
+    assert not await page.locator('#allow-scanner').is_checked()
+    assert not await page.locator('#allow-mouse').is_checked()
+    assert await page.locator('#diagnose').count()==0
     await agent.close()
     await reader
     await page.locator('.card.offline').wait_for()
     assert errors==[],errors
     await browser.close()
-    print('PASS Chromium: entrada direta, card, F11 request, alarm enable, remote session, keyboard forwarding, triple beep and 10-second repeat, end, offline; no JS errors')
+    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, EAN com zeros iniciais, leitor desativado, encerramento e offline; no JS errors')
   finally:
    await runner.cleanup()
 asyncio.run(main())

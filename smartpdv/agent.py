@@ -54,9 +54,6 @@ class Agent:
                                         self.desktop.release()
                                         if self.active:
                                             self.pending = False
-                                    elif data['type'] == 'input_diagnostics' and self.active:
-                                        from .windows_input_diagnostics import InputContext
-                                        await ws.send_json(InputContext().capture())
                                     elif data['type'] == 'input' and self.active:
                                         status = None
                                         try:

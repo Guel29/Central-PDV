@@ -9,9 +9,10 @@ import secrets
 import time
 import os
 import threading
+from contextlib import AsyncExitStack
 from aiohttp import web, WSMsgType
 from .security import token_hash
-from .storage import load_json
+from .storage import load_json, atomic_json
 
 
 def now():
@@ -22,6 +23,10 @@ class Central:
     def __init__(self, directory):
         self.directory = Path(directory)
         self.config = load_json(self.directory / 'central.json')
+        saved = self.config.get('peripherals', {})
+        if not isinstance(saved,dict):
+            saved = {}
+        self.config['peripherals'] = {key:saved.get(key, True) if type(saved.get(key, True)) is bool else True for key in ('keyboard','scanner','mouse')}
         self.agents = {}
         self.log_lock = threading.Lock()
         self.viewers = {}
@@ -59,7 +64,7 @@ class Central:
         return web.FileResponse(Path(__file__).parent / 'web' / request.path[1:])
 
     async def health(self, request):
-        from .windows_input_diagnostics import VERSION
+        from .version import VERSION
         return web.json_response({'status': 'ok', 'storage': 'json', 'transport': 'tls','version':VERSION})
 
     def same_origin(self, request):
@@ -105,7 +110,7 @@ class Central:
 
     async def publish(self):
         public = [{k: v for k, v in s.items() if k != 'owner'} for s in self.state.values()]
-        data = {'type': 'state', 'pdvs': public, 'alarm': self.config['alarm'], 'dashboard': self.config['dashboard']}
+        data = {'type': 'state', 'pdvs': public, 'alarm': self.config['alarm'], 'dashboard': self.config['dashboard'], 'peripherals':self.config['peripherals']}
         await self.broadcast(data)
 
     async def broadcast(self, data):
@@ -138,6 +143,32 @@ class Central:
                     break
                 try:
                     data = json.loads(msg.data)
+                    if not isinstance(data,dict):
+                        raise ValueError('Comando inválido')
+                    if data.get('type') == 'peripherals':
+                        settings = self.valid_peripherals(data.get('settings'))
+                        if not session['control'] or settings is None:
+                            raise ValueError('Autorizações inválidas')
+                        async with AsyncExitStack() as locks:
+                            for number in sorted(self.locks):
+                                await locks.enter_async_context(self.locks[number])
+                            # Merge just this setting into the current JSON, preserving PDV registrations.
+                            try:
+                                current = load_json(self.directory/'central.json')
+                                current['peripherals'] = settings
+                                await asyncio.to_thread(atomic_json,self.directory/'central.json',current)
+                            except (OSError,ValueError,RuntimeError):
+                                await ws.send_json({'type':'error','message':'Não foi possível salvar as autorizações. As opções anteriores continuam aplicadas.'})
+                                continue
+                            previous = self.config['peripherals']
+                            self.config['peripherals'] = settings
+                            if (previous['keyboard'] and not settings['keyboard']) or (previous['mouse'] and not settings['mouse']):
+                                for number, agent in list(self.agents.items()):
+                                    if self.state[number]['active'] and not agent.closed:
+                                        await agent.send_json({'type':'input','event':{'kind':'release'}})
+                        await self.publish()
+                        await ws.send_json({'type':'peripherals_saved'})
+                        continue
                     s = self.state[int(data['number'])]
                     async with self.locks[s['number']]:
                         agent = self.agents.get(s['number'])
@@ -152,12 +183,23 @@ class Central:
                             await ws.send_json({'type':'error','message':'PDV já está em atendimento'})
                         elif data['type'] == 'end' and s['owner'] == id(ws):
                             await self.end(s, data.get('result', 'Concluído'))
-                        elif data['type'] == 'diagnose' and s['active'] and s['owner'] == id(ws):
-                            await agent.send_json({'type':'input_diagnostics'})
+                        elif data['type'] == 'barcode' and s['active'] and s['owner'] == id(ws):
+                            code = data.get('code')
+                            if not self.config['peripherals']['scanner']:
+                                await ws.send_json({'type':'error','message':'Leitor EAN desativado na SmartCentral'})
+                                continue
+                            if not isinstance(code,str) or not 1 <= len(code) <= 32 or any(ch not in '0123456789' for ch in code):
+                                raise ValueError('Código inválido')
+                            await agent.send_json({'type':'input','event':{'kind':'release'}})
+                            for key in [*code,'Enter']:
+                                for action in ('down','up'):
+                                    await agent.send_json({'type':'input','event':{'kind':'key','action':action,'key':key}})
+                            await agent.send_json({'type':'input','event':{'kind':'release'}})
+                            await ws.send_json({'type':'barcode_sent','number':s['number']})
                             continue
                         elif data['type'] == 'input' and s['owner'] == id(ws):
                             event = data['event']
-                            if self.valid_input(event):
+                            if self.valid_input(event) and self.input_allowed(event):
                                 await agent.send_json({'type': 'input', 'event': event})
                             continue
                     await self.publish()
@@ -173,20 +215,15 @@ class Central:
         return ws
 
     @staticmethod
-    def valid_diagnostic(data):
-        fields = ('agent_version','agent_integrity','target_integrity','target_name','target_pid','query_error','comparison')
-        if not all(k in data for k in fields): return None
-        if not all(isinstance(data[k],str) for k in ('agent_version','agent_integrity','target_integrity','target_name','comparison')): return None
-        levels = {'low','medium','high','system','unknown'}
-        if data['agent_integrity'] not in levels or data['target_integrity'] not in levels: return None
-        if data['comparison'] not in {'agent_lower','not_lower','unknown'}: return None
-        if not isinstance(data['agent_version'],str) or not 0 < len(data['agent_version']) <= 20: return None
-        if not all(ch in '0123456789.' for ch in data['agent_version']): return None
-        if not isinstance(data['target_name'],str) or len(data['target_name']) > 120: return None
-        if any(ord(ch)<32 or ch in '/\\' for ch in data['target_name']): return None
-        if type(data['target_pid']) is not int or not 0 <= data['target_pid'] <= 0xffffffff: return None
-        if type(data['query_error']) is not int or not 0 <= data['query_error'] <= 65535: return None
-        return {'type':'input_diagnostics',**{k:data[k] for k in fields}}
+    def valid_peripherals(settings):
+        if not isinstance(settings,dict) or set(settings) != {'keyboard','scanner','mouse'}:
+            return None
+        return dict(settings) if all(type(value) is bool for value in settings.values()) else None
+
+    def input_allowed(self,event):
+        if event.get('kind') == 'release': return True
+        key = 'keyboard' if event.get('kind') == 'key' else 'mouse'
+        return self.config['peripherals'][key]
 
     @staticmethod
     def valid_input(event):
@@ -269,12 +306,6 @@ class Central:
                 if data['type'] == 'request' and not s['pending']:
                     s.update(pending=True, requested_at=now())
                     await self.publish()
-                elif data['type'] == 'input_diagnostics' and s['active']:
-                    diagnostic = self.valid_diagnostic(data)
-                    if diagnostic:
-                        for viewer in list(self.viewers):
-                            if id(viewer) == s['owner'] and not viewer.closed:
-                                await viewer.send_json({**diagnostic,'number':number})
                 elif data['type'] == 'input_status' and s['active']:
                     accepted, code = data.get('accepted'), data.get('error_code')
                     if type(accepted) is bool and type(code) is int and 0 <= code <= 65535:

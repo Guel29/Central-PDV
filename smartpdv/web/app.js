@@ -4,10 +4,29 @@ let opening = null;
 let socket, pdvs = [], selected = null, audio, alarmTimer, reconnectTimer, stopped = true;
 let alarm = {enabled:true,repeat_seconds:10}, lastPending = false, lastMove = 0;
 const cards = new Map();
-let diagnosticTimer;
+let peripherals = {keyboard:true,scanner:true,mouse:true};
+let peripheralsDirty = false, savingPeripherals = false, barcodePending = false;
 let knownPending = new Set();
-function send(data) { if(socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data)); }
-function input(event) { if(selected !== null) send({type:'input',number:selected,event}); }
+function send(data) { if(socket?.readyState !== WebSocket.OPEN)return false;socket.send(JSON.stringify(data));return true; }
+function input(event) {
+  if(selected === null)return;
+  if(event.kind==='key' && !peripherals.keyboard)return;
+  if(['mouse','wheel'].includes(event.kind) && !peripherals.mouse)return;
+  send({type:'input',number:selected,event});
+}
+function updatePeripherals() {
+  if(!peripheralsDirty && !savingPeripherals)for(const key of ['keyboard','scanner','mouse'])$('allow-'+key).checked=peripherals[key];
+  for(const key of ['keyboard','scanner','mouse'])$('allow-'+key).disabled=savingPeripherals || socket?.readyState!==WebSocket.OPEN;
+  $('save-peripherals').disabled=savingPeripherals || socket?.readyState!==WebSocket.OPEN;
+  $('barcode').disabled=$('send-barcode').disabled=!peripherals.scanner || barcodePending || selected===null;
+  $('control-help').textContent=`Teclado ${peripherals.keyboard?'autorizado':'desativado'} · Mouse ${peripherals.mouse?'autorizado':'desativado'} · Clique na imagem para controlar · Esc sai da tela cheia`;
+  if(!peripherals.scanner)$('barcode-status').textContent='Leitor EAN desativado nas autorizações da SmartCentral.';
+}
+function resetBarcode() {
+  barcodePending=false;$('barcode').value='';
+  $('barcode-status').textContent='Selecione o campo de venda no PDV e depois leia neste campo da Central.';
+  updatePeripherals();
+}
 function beep() {
   if(!audio || audio.state !== 'running' || !alarm.enabled) return;
   for(let i=0;i<3;i++) {
@@ -42,22 +61,22 @@ function render() {
   }
   if(selected!==null) {
     const p=pdvs.find(p=>p.number===selected);
-    if(!p?.online || (!p.active && !p.pending)) {selected=null;$('remote').close();}
+    if(!p?.online || (!p.active && !p.pending)) {selected=null;resetBarcode();$('remote').close();}
     else if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
   }
   updateAlarm();
 }
 function openRemote(number) {
+  input({kind:'release'});
   if(selected!==null && selected!==number) send({type:'end',number:selected,result:'Alternância de PDV'});
-  selected=null;
+  selected=null;resetBarcode();
   opening=number; send({type:'start',number});
 }
 function showRemote(number) {
   selected=number;
   $('remote-title').textContent=`PDV ${number} · Atendimento ativo`;
   $('input-status').textContent='Entrada remota: aguardando teclado';
-  clearTimeout(diagnosticTimer);
-  $('input-diagnostics').textContent='Selecione o VRPDV na tela remota e clique em Verificar permissões.';
+  resetBarcode();
   $('switch').replaceChildren(...pdvs.filter(p=>p.online).map(p=>new Option(`PDV ${p.number}`,p.number,false,p.number===number)));
   const p=pdvs.find(p=>p.number===number);
   if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
@@ -65,34 +84,43 @@ function showRemote(number) {
   $('screen').focus();
 }
 function endRemote() {
+  input({kind:'release'});
   if(selected!==null) send({type:'end',number:selected,result:'Concluído'});
-  selected=null; $('remote').close();
+  selected=null;resetBarcode();$('remote').close();
   if(document.fullscreenElement)document.exitFullscreen();
 }
 function connect() {
   clearTimeout(reconnectTimer);
   socket=new WebSocket(`wss://${location.host}/dashboard`);
-  socket.onopen=()=>{$('connection').textContent='● Central conectada · TLS';};
+  socket.onopen=()=>{$('connection').textContent='● Central conectada · TLS';updatePeripherals();};
   socket.onmessage=e=>{
     const data=JSON.parse(e.data);
     if(data.type==='state'){pdvs=data.pdvs;alarm=data.alarm;
+      const scannerWasAllowed=peripherals.scanner;
+      peripherals=data.peripherals || {keyboard:true,scanner:true,mouse:true};
+      if(!scannerWasAllowed && peripherals.scanner)$('barcode-status').textContent='Selecione o campo de venda no PDV e depois leia neste campo da Central.';
+      updatePeripherals();
+      if(!peripheralsDirty && !savingPeripherals)$('peripherals-status').textContent='Autorizações aplicadas na Central';
       $('cards').style.setProperty('--columns',Math.max(1,Math.min(8,data.dashboard.columns||4)));render();}
     else if(data.type==='opened'){showRemote(data.number);opening=null;}
-    else if(data.type==='error'){opening=null;alert(data.message);}
-    else if(data.type==='input_diagnostics' && selected===data.number){
-      clearTimeout(diagnosticTimer);
-      const levels={low:'baixo',medium:'padrão',high:'administrador',system:'sistema',unknown:'não identificado'};
-      const result=data.comparison==='agent_lower'
-        ? 'O Agent tem nível inferior ao aplicativo; o Windows pode impedir o controle.'
-        : data.comparison==='not_lower'
-          ? 'Nenhuma diferença de nível detectada; isso não comprova compatibilidade com o aplicativo.'
-          : 'Não foi possível comparar as permissões.';
-      $('input-diagnostics').textContent=`Agent ${data.agent_version}: ${levels[data.agent_integrity]} · Destino: ${data.target_name||'não identificado'} (PID ${data.target_pid}), ${levels[data.target_integrity]} · ${result}`;
+    else if(data.type==='error'){
+      opening=null;
+      if(savingPeripherals){savingPeripherals=false;$('peripherals-status').textContent=data.message;}
+      if(barcodePending){barcodePending=false;$('barcode-status').textContent=data.message;}
+      updatePeripherals();alert(data.message);
+    }
+    else if(data.type==='peripherals_saved'){
+      peripheralsDirty=false;savingPeripherals=false;updatePeripherals();
+      $('peripherals-status').textContent='Autorizações salvas neste computador';
+    }
+    else if(data.type==='barcode_sent' && selected===data.number){
+      barcodePending=false;$('barcode').value='';updatePeripherals();$('barcode').focus();
+      $('barcode-status').textContent='EAN encaminhado ao Agent. Confirme a leitura no aplicativo do PDV.';
     }
     else if(data.type==='input_status' && selected===data.number){
       $('input-status').textContent=data.accepted
         ? 'Windows aceitou a entrada · confirme o resultado no aplicativo'
-        : `Windows bloqueou a entrada (código ${data.error_code}) · verifique as permissões do Agent`;
+        : `Windows recusou a entrada remota (código ${data.error_code})`;
     }
     else if(data.type==='frame'){
       const p=pdvs.find(p=>p.number===data.number);if(!p)return;
@@ -103,7 +131,8 @@ function connect() {
   };
   socket.onclose=async()=>{
     $('connection').textContent='Central desconectada · Reconectando';
-    clearInterval(alarmTimer);lastPending=false;selected=null;$('remote').close();
+    clearInterval(alarmTimer);lastPending=false;selected=null;savingPeripherals=false;resetBarcode();$('remote').close();
+    $('peripherals-status').textContent='Central desconectada · alterações não confirmadas';
     for(const {card,info} of cards.values()){card.className='card offline';card.disabled=true;info.textContent='Conexão com a Central perdida';}
     if(!stopped){
       try{
@@ -117,15 +146,19 @@ function connect() {
   };
 }
 $('audio').onclick=async()=>{audio ||= new AudioContext();await audio.resume();$('audio').textContent='Alarme ativado';if(lastPending)beep();};
-$('diagnose').onclick=()=>{
-  if(selected===null)return;
-  clearTimeout(diagnosticTimer);
-  $('input-diagnostics').textContent='Verificando versão em execução, programa em foco e permissões do Windows…';
-  send({type:'diagnose',number:selected});
-  const number=selected;
-  diagnosticTimer=setTimeout(()=>{
-    if(selected===number)$('input-diagnostics').textContent='O Agent não respondeu. Verifique se a versão nova está em execução no PDV.';
-  },8000);
+$('peripherals-form').onchange=()=>{peripheralsDirty=true;$('peripherals-status').textContent='Alterações ainda não salvas';};
+$('peripherals-form').onsubmit=e=>{
+  e.preventDefault();
+  const settings=Object.fromEntries(['keyboard','scanner','mouse'].map(key=>[key,$('allow-'+key).checked]));
+  if(!send({type:'peripherals',settings}))return;
+  savingPeripherals=true;updatePeripherals();$('peripherals-status').textContent='Salvando autorizações…';
+};
+$('barcode-form').onsubmit=e=>{
+  e.preventDefault();
+  const code=$('barcode').value;
+  if(selected===null || !peripherals.scanner || barcodePending || !/^[0-9]{1,32}$/.test(code))return;
+  if(!send({type:'barcode',number:selected,code}))return;
+  barcodePending=true;updatePeripherals();$('barcode-status').textContent='Encaminhando ao Agent…';
 };
 $('close').onclick=endRemote;$('remote').addEventListener('cancel',e=>{e.preventDefault();endRemote();});
 $('switch').onchange=e=>openRemote(Number(e.target.value));

@@ -1,7 +1,7 @@
 [Setup]
 AppId=SmartPDV-Agent-Win7
 AppName=SmartPDV Agent Windows 7
-AppVersion=0.1.3
+AppVersion=0.1.4
 DefaultDirName={localappdata}\Programs\SmartPDV-Agent-Win7
 DefaultGroupName=SmartPDV Agent Win7
 PrivilegesRequired=lowest
