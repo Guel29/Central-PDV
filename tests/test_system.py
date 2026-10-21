@@ -83,6 +83,12 @@ def test_tls_auth_and_full_workflow(tmp_path):
                 event={'kind':'mouse','action':'move','x':.5,'y':.4,'button':0}
                 await dashboard.send_json({'type':'input','number':1,'event':event})
                 assert await agent.receive_json() == {'type':'input','event':event}
+                await dashboard.send_json({'type':'diagnose','number':1})
+                assert await agent.receive_json()=={'type':'input_diagnostics'}
+                diagnostic={'type':'input_diagnostics','agent_version':'0.1.3','agent_integrity':'medium','target_integrity':'high',
+                            'target_name':'VRPDV.exe','target_pid':123,'query_error':0,'comparison':'agent_lower'}
+                await agent.send_json({**diagnostic,'ean':'not forwarded'})
+                assert await dashboard.receive_json()=={**diagnostic,'number':1}
                 await agent.send_json({'type':'input_status','accepted':False,'error_code':5})
                 assert await dashboard.receive_json() == {'type':'input_status','number':1,'accepted':False,'error_code':5}
                 await agent.send_json({'type':'input_status','accepted':'untrusted','error_code':5})
@@ -315,3 +321,11 @@ def test_input_rejection_report_keeps_remote_session_connected(tmp_path):
             await asyncio.gather(task,return_exceptions=True)
             await runner.cleanup()
     asyncio.run(scenario())
+
+
+def test_diagnostic_payload_has_only_context_not_keys():
+    report={'type':'input_diagnostics','agent_version':'0.1.3','agent_integrity':'medium',
+            'target_integrity':'high','target_name':'VRPDV.exe','target_pid':123,'query_error':0,'comparison':'agent_lower'}
+    assert Central.valid_diagnostic({**report,'ean':'must not be forwarded','token':'must not be forwarded'})==report
+    for update in ({'agent_integrity':[]},{'agent_version':None},{'target_pid':True},{'target_name':'x\nsecret'}, {'comparison':'arbitrary'}):
+        assert Central.valid_diagnostic({**report,**update}) is None

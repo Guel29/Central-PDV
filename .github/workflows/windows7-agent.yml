@@ -33,7 +33,7 @@ jobs:
         shell: pwsh
         run: |
           try {
-            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /reference:System.Windows.Forms.dll ScanKeyboard.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
+            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /reference:System.Windows.Forms.dll ScanKeyboard.cs InputContext.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
             if ($LASTEXITCODE -ne 0) {
               $details = (Get-Content keyboard-compile.log | Select-Object -Last 12) -join '%0A'
               Write-Host "::error::$details"
@@ -114,7 +114,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'win7-notes.md'
           @'
           Agent separado para Windows 7 SP1 (32 ou 64 bits), exige .NET Framework 4.8 instalado.
-          Atualizacao 0.1.2: pressao minima de tecla de 20 ms configuravel e retorno de aceite/bloqueio do Windows na Central atualizada; preserva pareamento e configuracao. Compatibilidade com VRPDV precisa de teste no caixa.
+          Atualizacao 0.1.3: comparacao de permissao e versao do Agent em execucao; pressao minima de tecla de 20 ms configuravel e retorno de aceite/bloqueio do Windows na Central atualizada; preserva pareamento e configuracao. Compatibilidade com VRPDV precisa de teste no caixa.
           Captura de tela, F11 e controle mouse/teclado nativos. Inicializacao discreta apos login do Windows.
           Pareamento com a Central pela LAN, TLS 1.2 e credencial protegida por DPAPI. Sem banco, login de aplicativo ou nuvem.
           Testes automatizados do executavel e instalador feitos em Windows moderno contra a Central real.

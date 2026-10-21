@@ -4,6 +4,7 @@ let opening = null;
 let socket, pdvs = [], selected = null, audio, alarmTimer, reconnectTimer, stopped = true;
 let alarm = {enabled:true,repeat_seconds:10}, lastPending = false, lastMove = 0;
 const cards = new Map();
+let diagnosticTimer;
 let knownPending = new Set();
 function send(data) { if(socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data)); }
 function input(event) { if(selected !== null) send({type:'input',number:selected,event}); }
@@ -55,6 +56,8 @@ function showRemote(number) {
   selected=number;
   $('remote-title').textContent=`PDV ${number} · Atendimento ativo`;
   $('input-status').textContent='Entrada remota: aguardando teclado';
+  clearTimeout(diagnosticTimer);
+  $('input-diagnostics').textContent='Selecione o VRPDV na tela remota e clique em Verificar permissões.';
   $('switch').replaceChildren(...pdvs.filter(p=>p.online).map(p=>new Option(`PDV ${p.number}`,p.number,false,p.number===number)));
   const p=pdvs.find(p=>p.number===number);
   if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
@@ -76,6 +79,16 @@ function connect() {
       $('cards').style.setProperty('--columns',Math.max(1,Math.min(8,data.dashboard.columns||4)));render();}
     else if(data.type==='opened'){showRemote(data.number);opening=null;}
     else if(data.type==='error'){opening=null;alert(data.message);}
+    else if(data.type==='input_diagnostics' && selected===data.number){
+      clearTimeout(diagnosticTimer);
+      const levels={low:'baixo',medium:'padrão',high:'administrador',system:'sistema',unknown:'não identificado'};
+      const result=data.comparison==='agent_lower'
+        ? 'O Agent tem nível inferior ao aplicativo; o Windows pode impedir o controle.'
+        : data.comparison==='not_lower'
+          ? 'Nenhuma diferença de nível detectada; isso não comprova compatibilidade com o aplicativo.'
+          : 'Não foi possível comparar as permissões.';
+      $('input-diagnostics').textContent=`Agent ${data.agent_version}: ${levels[data.agent_integrity]} · Destino: ${data.target_name||'não identificado'} (PID ${data.target_pid}), ${levels[data.target_integrity]} · ${result}`;
+    }
     else if(data.type==='input_status' && selected===data.number){
       $('input-status').textContent=data.accepted
         ? 'Windows aceitou a entrada · confirme o resultado no aplicativo'
@@ -104,6 +117,16 @@ function connect() {
   };
 }
 $('audio').onclick=async()=>{audio ||= new AudioContext();await audio.resume();$('audio').textContent='Alarme ativado';if(lastPending)beep();};
+$('diagnose').onclick=()=>{
+  if(selected===null)return;
+  clearTimeout(diagnosticTimer);
+  $('input-diagnostics').textContent='Verificando versão em execução, programa em foco e permissões do Windows…';
+  send({type:'diagnose',number:selected});
+  const number=selected;
+  diagnosticTimer=setTimeout(()=>{
+    if(selected===number)$('input-diagnostics').textContent='O Agent não respondeu. Verifique se a versão nova está em execução no PDV.';
+  },8000);
+};
 $('close').onclick=endRemote;$('remote').addEventListener('cancel',e=>{e.preventDefault();endRemote();});
 $('switch').onchange=e=>openRemote(Number(e.target.value));
 $('fullscreen').onclick=async()=>{

@@ -397,6 +397,7 @@ namespace SmartPDV.Legacy
                                         lastAccepted = null; lastReport = DateTime.MinValue;
                                         active = (bool)message["active"]; desktop.Release(); if (active) pending = false;
                                     }
+                                    else if (type == "input_diagnostics" && active) connection.Send(InputContext.Capture());
                                     else if (type == "input" && active)
                                     {
                                         bool? accepted = null; int error = 0;

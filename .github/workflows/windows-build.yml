@@ -63,7 +63,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'smartpdv-release.md'
           @'
           Dois instaladores independentes para testes em Windows 10/11 x64.
-          Atualizacao 1.0.3: Agent com pressao minima de teclas de 20 ms configuravel, retorno de aceite/bloqueio do Windows e Central com F11 global, preservando cadastro e pareamento. Compatibilidade VRPDV/LS2208 precisa ser testada no caixa.
+          Atualizacao 1.0.4: diagnostico do processo em foco, permissao e versao do Agent; Agent com pressao minima de teclas de 20 ms configuravel, retorno de aceite/bloqueio do Windows e Central com F11 global, preservando cadastro e pareamento. Compatibilidade VRPDV/LS2208 precisa ser testada no caixa.
           Central: dashboard local HTTPS. Agent: captura/controle Windows reais, sem console, inicialização após login.
           Cadastre e pareie somente computadores autorizados da LAN. Configure o certificado local na Central.
           Binários sem assinatura Authenticode. Esta versão é para testes; captura e entrada física precisam de validação nos computadores de destino.

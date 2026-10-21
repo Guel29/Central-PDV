@@ -65,3 +65,17 @@ def test_native_desktop_scan_codes_and_release():
     finally:
         user.UnhookWindowsHookEx(hook)
         desktop.close()
+
+
+def test_native_input_context_reads_actual_process_token():
+    from smartpdv.windows_input_diagnostics import InputContext, VERSION
+    context=InputContext()
+    agent=context.integrity(context.kernel.GetCurrentProcess())
+    assert agent is not None
+    name,level,error=context.process(os.getpid())
+    assert level==agent and error==0
+    assert name.lower().endswith('.exe') and '/' not in name and '\\' not in name
+    result=context.capture()
+    assert result['agent_version']==VERSION
+    assert result['agent_integrity']!='unknown'
+    assert set(result)=={'type','agent_version','agent_integrity','target_integrity','target_name','target_pid','query_error','comparison'}

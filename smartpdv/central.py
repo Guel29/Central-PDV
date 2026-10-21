@@ -59,7 +59,8 @@ class Central:
         return web.FileResponse(Path(__file__).parent / 'web' / request.path[1:])
 
     async def health(self, request):
-        return web.json_response({'status': 'ok', 'storage': 'json', 'transport': 'tls'})
+        from .windows_input_diagnostics import VERSION
+        return web.json_response({'status': 'ok', 'storage': 'json', 'transport': 'tls','version':VERSION})
 
     def same_origin(self, request):
         return request.headers.get('Origin') == f'https://{request.host}'
@@ -151,6 +152,9 @@ class Central:
                             await ws.send_json({'type':'error','message':'PDV já está em atendimento'})
                         elif data['type'] == 'end' and s['owner'] == id(ws):
                             await self.end(s, data.get('result', 'Concluído'))
+                        elif data['type'] == 'diagnose' and s['active'] and s['owner'] == id(ws):
+                            await agent.send_json({'type':'input_diagnostics'})
+                            continue
                         elif data['type'] == 'input' and s['owner'] == id(ws):
                             event = data['event']
                             if self.valid_input(event):
@@ -167,6 +171,22 @@ class Central:
                         await self.end(s, 'Supervisor desconectado')
             await self.publish()
         return ws
+
+    @staticmethod
+    def valid_diagnostic(data):
+        fields = ('agent_version','agent_integrity','target_integrity','target_name','target_pid','query_error','comparison')
+        if not all(k in data for k in fields): return None
+        if not all(isinstance(data[k],str) for k in ('agent_version','agent_integrity','target_integrity','target_name','comparison')): return None
+        levels = {'low','medium','high','system','unknown'}
+        if data['agent_integrity'] not in levels or data['target_integrity'] not in levels: return None
+        if data['comparison'] not in {'agent_lower','not_lower','unknown'}: return None
+        if not isinstance(data['agent_version'],str) or not 0 < len(data['agent_version']) <= 20: return None
+        if not all(ch in '0123456789.' for ch in data['agent_version']): return None
+        if not isinstance(data['target_name'],str) or len(data['target_name']) > 120: return None
+        if any(ord(ch)<32 or ch in '/\\' for ch in data['target_name']): return None
+        if type(data['target_pid']) is not int or not 0 <= data['target_pid'] <= 0xffffffff: return None
+        if type(data['query_error']) is not int or not 0 <= data['query_error'] <= 65535: return None
+        return {'type':'input_diagnostics',**{k:data[k] for k in fields}}
 
     @staticmethod
     def valid_input(event):
@@ -249,6 +269,12 @@ class Central:
                 if data['type'] == 'request' and not s['pending']:
                     s.update(pending=True, requested_at=now())
                     await self.publish()
+                elif data['type'] == 'input_diagnostics' and s['active']:
+                    diagnostic = self.valid_diagnostic(data)
+                    if diagnostic:
+                        for viewer in list(self.viewers):
+                            if id(viewer) == s['owner'] and not viewer.closed:
+                                await viewer.send_json({**diagnostic,'number':number})
                 elif data['type'] == 'input_status' and s['active']:
                     accepted, code = data.get('accepted'), data.get('error_code')
                     if type(accepted) is bool and type(code) is int and 0 <= code <= 65535:

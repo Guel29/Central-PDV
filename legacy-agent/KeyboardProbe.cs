@@ -31,6 +31,9 @@ namespace SmartPDV.Legacy
             if (handle == IntPtr.Zero) throw new Exception("Cannot install CI keyboard hook");
             try
             {
+                var diagnostic=InputContext.Capture();
+                if((string)diagnostic["agent_integrity"]=="unknown" || (string)diagnostic["agent_version"]!="0.1.3")
+                    throw new Exception("Cannot query own token integrity/version");
                 // EAN-13 digits, Enter and an extended navigation key. Swallowed by hook.
                 byte[] keys = { 0x37,0x38,0x39,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x35,0x0d,0x25 };
                 foreach (byte key in keys)
