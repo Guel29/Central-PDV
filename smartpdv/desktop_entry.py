@@ -28,7 +28,18 @@ def open_dashboard(directory):
         try:
             with opener.open(url+'/health',timeout=1) as response:
                 if response.status == 200:
-                    webbrowser.open(url)
+                    if os.name == 'nt':
+                        from .central_shortcut import DashboardWindow, GlobalF11
+                        window = DashboardWindow(url)
+                        window.activate()
+                        try:
+                            GlobalF11(window.activate).start()
+                        except RuntimeError as exc:
+                            (directory/'central-shortcut-error.txt').write_text(str(exc), encoding='utf-8')
+                            import ctypes
+                            ctypes.windll.user32.MessageBoxW(None, str(exc), 'SmartCentral - atalho F11 indisponivel', 0x30)
+                    else:
+                        webbrowser.open(url)
                     return
         except (OSError, ValueError):
             time.sleep(1)

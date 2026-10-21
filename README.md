@@ -58,3 +58,7 @@ Existe um Agent separado em [legacy-agent](legacy-agent/README.md), destinado a 
 ### Atualizacao de teclado Windows
 
 Agent Windows 10/11 x64 1.0.1 e Agent legado 0.1.1 usam SendInput com scan codes para a entrada remota (numeros EAN, Enter, modificadores e navegacao). Encerre o Agent e instale a atualizacao na mesma conta Windows. Cadastro e pareamento permanecem no perfil local. Os testes Windows verificam eventos nativos, liberacao de teclas e ABI de entrada. O VRPDV/LS2208 deve ser validado no equipamento de destino; entrada sintetica nao equivale a um leitor USB fisico. Instaladores modernos exigem Windows 10/11 x64; a versao legada publicada destina-se ao Windows 7 SP1 32/64 bits com .NET 4.8. Windows 8/8.1 e ARM nativo nao foram homologados.
+
+### F11 global na Central (1.0.2)
+
+Com o executavel Central em execucao, F11 restaura e traz a janela SmartCentral para frente a partir de outros aplicativos da mesma sessao Windows. Edge/Chrome abrem o dashboard em janela de aplicativo dedicada, identificavel mesmo com outras abas abertas. Se a janela foi fechada, F11 abre novamente; a Central precisa continuar em execucao. O Agent continua usando F11 para chamados apenas no computador PDV. Na Central, F11 passa a ser o atalho global, substituindo o F11 de tela cheia do navegador. Se outro programa ja reservou F11, a Central informa o conflito; nenhum atalho de outro programa e removido. Nao atua na tela bloqueada ou area segura UAC. Em execucao de testes `--no-browser`, nao registra o atalho global.
