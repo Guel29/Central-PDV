@@ -92,3 +92,15 @@ msbuild diagnostics/SmartPDV-Input-Diagnostic.csproj /p:Configuration=Release
 ```
 
 A saída é `diagnostics/bin/Release/SmartPDV-Input-Diagnostic.exe`. O workflow **Input diagnostics (passive)** compila x86, testa resumos sem dependência dos números, esquema de importação, limites de tamanho/eventos, ACL, exportação atômica, observação de eventos Windows realmente injetados, parada e abertura da janela sem coleta automática. Não acessa hardware nem a VR. Publica um ZIP portátil, binário, configuração e SHA-256 em uma pré-versão separada; os instaladores da Central e do Agent não são substituídos.
+
+## Relatórios vazios e versão 0.1.1
+
+O usuário enviou resumos 0.1.0 de `keyboard_hook/manual` e `raw_keyboard/card_remote`, ambos com 30 segundos e `streams: {}`. Eles não registraram eventos e não permitem comparar a leitura do cartão. Não comprovam falha no leitor, uso de HID pela VR ou que nenhuma tecla tenha sido digitada. Não foram incorporados números de cartão ou arquivos particulares ao código.
+
+A ferramenta 0.1.1 mostra a quantidade de eventos durante a coleta e **SEM EVENTOS** quando encerra vazia. O novo bloco `capture_health` contém apenas estado e contagens: chamadas do hook, mensagens Raw Input, falhas de leitura Raw Input, atividade geral da sessão Windows, correspondência com o desktop de entrada, sessão interativa e classificação do token do próprio processo. `input_activity` inclui mouse e teclado; não informa qual tecla, não prova leitura de cartão e não identifica o processo da VR. `input_desktop` é uma comparação no início, sem exportar o nome da área de trabalho; `process_token_level` não compara o Agent com a VR e não autoriza operações. Os registros de inscrição/thread indicam estado interno, não garantem que o Windows tenha entregue todos os eventos.
+
+Esses metadados permitem separar coleta sem atividade observável, ambiente de entrada inacessível, falha de leitura de mensagens e ausência de callbacks apesar de atividade da sessão. Não são uma correção da transmissão fiscal. Relatórios 0.1.0 continuam legíveis; os novos campos usam esquema restrito e não aceitam texto livre, nomes de usuários ou caminhos.
+
+O CI também passa a abrir o **WinExe distribuído**, operar seus seletores e botão Preparar por automação de interface, esperar a preparação real, enviar somente dados fictícios a uma janela de teste externa e verificar o JSON resultante. Há teste do término automático e da parada manual. A injeção é exclusiva de `UiProbe.cs`, executável de teste separado; não é compilada no diagnóstico distribuído.
+
+Para validar a versão nova, use primeiro **Digitação de teste**, na Central, com `123456` e Enter em um Bloco de Notas vazio do próprio computador. Não use cartão fiscal nem senha para verificar o coletor. Aguarde os cinco segundos de preparação e digite dentro dos 30 segundos ativos. Compartilhe o resumo mesmo se aparecer SEM EVENTOS: o bloco de saúde permitirá examinar a ausência de captura. A necessidade de mudar privilégios ou o mecanismo de captura ainda deve ser verificada, sem presumir que executar como administrador resolva a leitura fiscal.

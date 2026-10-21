@@ -38,7 +38,7 @@ jobs:
         working-directory: diagnostics
         shell: pwsh
         run: |
-          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:DiagnosticsTests.exe /main:SmartPDV.Diagnostics.Tests /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll Summary.cs NativeCapture.cs Program.cs Tests.cs 2>&1 | Tee-Object compile-tests.log
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:DiagnosticsTests.exe /main:SmartPDV.Diagnostics.Tests /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll CaptureEnvironment.cs Summary.cs NativeCapture.cs Program.cs Tests.cs 2>&1 | Tee-Object compile-tests.log
           if ($LASTEXITCODE -ne 0) {
             $details = (Get-Content compile-tests.log | Select-Object -Last 15) -join '%0A'
             Write-Host "::error::$details"
@@ -101,7 +101,7 @@ jobs:
           $tag = "input-diagnostic-$env:GITHUB_RUN_NUMBER-$env:GITHUB_RUN_ATTEMPT"
           $notes = Join-Path $env:RUNNER_TEMP 'input-diagnostic-release.md'
           @'
-          Ferramenta de diagnostico passivo 0.1.0, separada da Central 1.0.9 e do Agent legado 0.1.6. Nao e uma correcao comprovada do cartao fiscal.
+          Ferramenta de diagnostico passivo 0.1.1, separada da Central 1.0.9 e do Agent legado 0.1.6. Nao e uma correcao comprovada do cartao fiscal.
           Requer Windows 7 SP1 com .NET Framework 4.8 ou Windows mais recente com .NET 4.8. Compilada x86; testes nativos realizados no runner Windows atual, sem hardware LS2208 ou VRPDV.
           Coleta manual, espera de 5 segundos e limite de 30 segundos. Apenas categorias, contagens e faixas de tempo; nao guarda digitos, sequencias, hashes de cartoes ou caminhos dos dispositivos.
           Nao envia comandos, nao abre portas de rede, nao modifica o Agent, nao instala drivers e nao altera a validacao da VR. Nao substitui o controle de acesso da Central.

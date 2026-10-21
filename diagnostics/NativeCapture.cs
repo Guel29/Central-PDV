@@ -37,7 +37,11 @@ namespace SmartPDV.Diagnostics
         Thread worker;
         uint workerId;
         volatile bool stopping;
-        int hookError;
+        int hookError, hookCallbacks, rawMessages, rawReadErrors;
+        uint initialActivity;
+        bool activityAvailable, activitySeen;
+        string inputDesktop="unavailable", tokenLevel="unavailable";
+        public int EventCount { get { lock(sync)return summary.Events; } }
         readonly Summary summary;
         readonly bool rawMode;
         readonly Stopwatch clock = new Stopwatch();
@@ -55,6 +59,8 @@ namespace SmartPDV.Diagnostics
         {
             if (Active || hook != IntPtr.Zero || registered) throw new InvalidOperationException("Capture already active");
             Inventory();
+            inputDesktop=CaptureEnvironment.InputDesktop(); tokenLevel=CaptureEnvironment.TokenLevel();
+            activityAvailable=CaptureEnvironment.LastActivity(out initialActivity);
             try
             {
                 if (rawMode)
@@ -101,6 +107,7 @@ namespace SmartPDV.Diagnostics
             {
                 lock (sync) if (code >= 0 && Collecting())
                 {
+                    hookCallbacks=Math.Min(1000000,hookCallbacks+1);
                     var data = (KeyboardData)Marshal.PtrToStructure(pointer, typeof(KeyboardData));
                     summary.Add((data.Flags & 0x10) != 0 ? "ll_injected" : "ll_not_injected", data.Key,
                         (data.Flags & 0x80) == 0, (data.Flags & 1) != 0, data.Scan != 0, (data.Flags & 2) != 0,
@@ -112,14 +119,14 @@ namespace SmartPDV.Diagnostics
         }
         public void RawInput(IntPtr handle)
         {
-            lock (sync) if (!Collecting()) return;
+            lock (sync) { if (!rawMode || !Collecting()) return; rawMessages=Math.Min(1000000,rawMessages+1); }
             uint size = 0, headerSize = (uint)Marshal.SizeOf(typeof(RawHeader));
-            if (GetRawInputData(handle, 0x10000003, IntPtr.Zero, ref size, headerSize) != 0 || size < headerSize || size > 65536) return;
+            if (GetRawInputData(handle, 0x10000003, IntPtr.Zero, ref size, headerSize) != 0 || size < headerSize || size > 65536) { RawReadError(); return; }
             IntPtr buffer = Marshal.AllocHGlobal((int)size);
             try
             {
                 uint copied = GetRawInputData(handle, 0x10000003, buffer, ref size, headerSize);
-                if (copied == uint.MaxValue || copied != size || copied < headerSize + Marshal.SizeOf(typeof(RawKeyboard))) return;
+                if (copied == uint.MaxValue || copied != size || copied < headerSize + Marshal.SizeOf(typeof(RawKeyboard))) { RawReadError(); return; }
                 var header = (RawHeader)Marshal.PtrToStructure(buffer, typeof(RawHeader));
                 if (header.Type != 1) return; // Never decode HID reports or translate to text.
                 var key = (RawKeyboard)Marshal.PtrToStructure(IntPtr.Add(buffer, (int)headerSize), typeof(RawKeyboard));
@@ -161,12 +168,30 @@ namespace SmartPDV.Diagnostics
             }
             finally { Marshal.FreeHGlobal(list); }
         }
-        public void Tick() { lock (sync) Collecting(); }
+        void RawReadError() { lock(sync)rawReadErrors=Math.Min(1000000,rawReadErrors+1); }
+        void Activity()
+        {
+            uint current;
+            if(activityAvailable && CaptureEnvironment.LastActivity(out current) && current!=initialActivity)activitySeen=true;
+        }
+        public void Tick() { lock (sync) { if(Active)Activity(); Collecting(); } }
         public void Stop(string reason)
         {
-            lock (sync) if (Active) { Active = false; clock.Stop(); StopReason = reason; }
+            lock (sync) if (Active) { Activity(); Active = false; clock.Stop(); StopReason = reason; }
         }
-        public Dictionary<string, object> Report() { lock (sync) return summary.Export(Elapsed, StopReason ?? "manual", Keyboards, Hids, SerialPorts); }
+        public Dictionary<string, object> Report()
+        {
+            lock(sync) {
+                var report=summary.Export(Elapsed,StopReason??"manual",Keyboards,Hids,SerialPorts);
+                var health=(Dictionary<string,object>)report["capture_health"];
+                if(ObservationFailed)health["status"]="observer_error";
+                health["hook_callbacks"]=hookCallbacks; health["raw_messages"]=rawMessages; health["raw_read_errors"]=rawReadErrors;
+                health["input_activity"]=!activityAvailable?"unknown":activitySeen?"yes":"no";
+                health["input_desktop"]=inputDesktop; health["process_token_level"]=tokenLevel;
+                health["hook_thread_alive"]=worker!=null&&worker.IsAlive; health["raw_registration_succeeded"]=registered;
+                return report;
+            }
+        }
         public void Dispose()
         {
             Stop("manual");

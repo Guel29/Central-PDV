@@ -6,8 +6,8 @@ using System.Security.Principal;
 using System.Text;
 using System.Windows.Forms;
 
-[assembly: System.Reflection.AssemblyVersion("0.1.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.1.0.0")]
+[assembly: System.Reflection.AssemblyVersion("0.1.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.1.1.0")]
 
 namespace SmartPDV.Diagnostics
 {
@@ -73,15 +73,22 @@ namespace SmartPDV.Diagnostics
             if (capture == null) return;
             capture.Tick();
             if (!capture.Active) { Finish(); return; }
-            status.Text = "Coleta ativa — restam " + ((30000 - capture.Elapsed + 999) / 1000) + " segundos. Volte ao aplicativo e faça uma leitura.";
+            status.Text = "Coleta ativa — " + capture.EventCount + " eventos observados; restam " + ((30000 - capture.Elapsed + 999) / 1000) + " segundos. Volte ao aplicativo e faça uma leitura.";
         }
         void Finish()
         {
             timer.Stop(); arming = false;
+            string result="Inativo — observadores removidos.";
             if (capture != null)
             {
                 capture.Stop("manual");
-                report = Summary.Serializer().Serialize(capture.Report());
+                var data=capture.Report();
+                report = Summary.Serializer().Serialize(data);
+                var health=(System.Collections.Generic.Dictionary<string,object>)data["capture_health"];
+                result=capture.EventCount==0
+                    ? "SEM EVENTOS — este resumo não permite avaliar a leitura. Atividade geral do Windows: " + health["input_activity"] + "."
+                    : "Coleta encerrada — " + capture.EventCount + " eventos observados; resumo somente na memória até salvar.";
+                status.ForeColor=capture.EventCount==0?Color.Firebrick:Color.DarkGreen;
                 bool failed = capture.ObservationFailed;
                 capture.Dispose(); capture = null;
                 output.Text = failed ? "Falha no observador; resumo descartado." : report; save.Enabled = !failed;
@@ -89,7 +96,7 @@ namespace SmartPDV.Diagnostics
             }
             start.Enabled = compare.Enabled = clear.Enabled = location.Enabled = scenario.Enabled = observer.Enabled = true;
             stop.Enabled = false;
-            status.Text = "Inativo — observadores removidos. Resumo somente na memória até salvar ou limpar.";
+            status.Text = result;
         }
         protected override void WndProc(ref Message message)
         {

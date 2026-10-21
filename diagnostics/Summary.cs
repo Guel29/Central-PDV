@@ -10,7 +10,7 @@ namespace SmartPDV.Diagnostics
     // scan code, device path, serial number, character, or card hash is retained.
     sealed class Summary
     {
-        public const string Version = "0.1.0", Schema = "smartpdv-input-summary-v1";
+        public const string Version = "0.1.1", Schema = "smartpdv-input-summary-v1";
         public static readonly string[] Scenarios = { "product_local", "product_remote", "card_local", "card_remote", "manual" };
         public static readonly string[] Categories = { "digit", "keypad_digit", "letter", "enter", "tab", "modifier", "function", "navigation", "other" };
         public static readonly string[] Counters = { "down", "up", "extended", "scan_present", "scan_missing", "lower_integrity", "focus_changes", "digit", "keypad_digit", "letter", "enter", "tab", "modifier", "function", "navigation", "other", "gap_lt5ms", "gap_5to19ms", "gap_20to49ms", "gap_50to99ms", "gap_ge100ms" };
@@ -20,6 +20,13 @@ namespace SmartPDV.Diagnostics
         readonly string location, scenario, observerMode;
         public int Events { get; private set; }
         public const int EventLimit = 10000;
+        public static Dictionary<string, object> EmptyHealth(int events)
+        {
+            return new Dictionary<string, object> { {"status",events>0?"events_observed":"no_events"}, {"observed_events",events},
+                {"hook_callbacks",0}, {"raw_messages",0}, {"raw_read_errors",0}, {"input_activity","unknown"},
+                {"input_desktop","unavailable"}, {"interactive_session",Environment.UserInteractive},
+                {"process_token_level","unavailable"}, {"hook_thread_alive",false}, {"raw_registration_succeeded",false} };
+        }
         public Summary(string location, string scenario, string observerMode = "keyboard_hook")
         {
             if ((location != "central" && location != "pdv") || !Scenarios.Contains(scenario)) throw new ArgumentException("Invalid diagnostic selection");
@@ -87,6 +94,7 @@ namespace SmartPDV.Diagnostics
                 { "schema", Schema }, { "tool_version", Version }, { "location", location }, { "scenario", scenario }, { "observer_mode", observerMode },
                 { "elapsed_ms", Math.Min(30000, Math.Max(0, elapsed)) }, { "stop_reason", reason },
                 { "inventory", new Dictionary<string, object> { { "raw_keyboard_devices", keyboards }, { "raw_hid_devices", hids }, { "serial_port_count", serialPorts } } },
+                { "capture_health", EmptyHealth(Events) },
                 { "streams", streams.ToDictionary(p => p.Key, p => (object)new Dictionary<string, object>((Dictionary<string, object>)p.Value)) }
             };
         }
@@ -100,8 +108,11 @@ namespace SmartPDV.Diagnostics
             if (text.Length > 65536) throw new ArgumentException("Summary too large");
             var d = Serializer().DeserializeObject(text) as Dictionary<string, object>;
             if (d == null) throw new ArgumentException("Invalid summary");
-            Exact(d, new[] { "schema", "tool_version", "location", "scenario", "observer_mode", "elapsed_ms", "stop_reason", "inventory", "streams" });
-            if (!Schema.Equals(d["schema"]) || !Version.Equals(d["tool_version"]) || !(new object[] { "central", "pdv" }).Contains(d["location"]) || !Scenarios.Contains(d["scenario"] as string) || !(new object[] { "manual", "timeout", "event_limit" }).Contains(d["stop_reason"])) throw new ArgumentException("Invalid summary metadata");
+            bool legacy=Equals(d.ContainsKey("tool_version")?d["tool_version"]:null,"0.1.0");
+            var fields=new[] { "schema", "tool_version", "location", "scenario", "observer_mode", "elapsed_ms", "stop_reason", "inventory", "streams" };
+            Exact(d, legacy?fields:fields.Concat(new[] {"capture_health"}));
+            if(!legacy) ValidateHealth(d["capture_health"]);
+            if (!Schema.Equals(d["schema"]) || (!Version.Equals(d["tool_version"]) && !legacy) || !(new object[] { "central", "pdv" }).Contains(d["location"]) || !Scenarios.Contains(d["scenario"] as string) || !(new object[] { "manual", "timeout", "event_limit" }).Contains(d["stop_reason"])) throw new ArgumentException("Invalid summary metadata");
             if (!(new object[] { "keyboard_hook", "raw_keyboard" }).Contains(d["observer_mode"])) throw new ArgumentException("Invalid observer mode");
             Integer(d["elapsed_ms"], 0, 30000);
             var inventory = d["inventory"] as Dictionary<string, object>;
@@ -121,6 +132,20 @@ namespace SmartPDV.Diagnostics
                 if (down + up > EventLimit || Categories.Sum(k => (int)s[k]) != down) throw new ArgumentException("Inconsistent summary");
             }
             return d;
+        }
+        static void ValidateHealth(object value)
+        {
+            var h=value as Dictionary<string,object>;
+            if(h==null)throw new ArgumentException("Invalid health metadata");
+            Exact(h,EmptyHealth(0).Keys);
+            if(!(new object[]{"events_observed","no_events","observer_error"}).Contains(h["status"]) ||
+               !(new object[]{"yes","no","unknown"}).Contains(h["input_activity"]) ||
+               !(new object[]{"same","different","unavailable"}).Contains(h["input_desktop"]) ||
+               !(new object[]{"administrator","standard","unavailable"}).Contains(h["process_token_level"])) throw new ArgumentException("Invalid health category");
+            Integer(h["observed_events"],0,EventLimit);
+            foreach(string key in new[]{"hook_callbacks","raw_messages","raw_read_errors"})Integer(h[key],0,1000000);
+            foreach(string key in new[]{"interactive_session","hook_thread_alive","raw_registration_succeeded"})
+                if(!(h[key] is bool))throw new ArgumentException("Invalid health flag");
         }
         static int Total(Dictionary<string, object> d, string prefix, string counter)
         {

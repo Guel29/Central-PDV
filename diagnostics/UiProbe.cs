@@ -23,7 +23,7 @@ namespace SmartPDV.Diagnostics
         {
             foreach (uint flags in new uint[] { 8,10 })
             {
-                var input=new Input { Type=1, Data=new Union { Keyboard=new Keyboard { Scan=scan, Flags=flags } } };
+                var input=new Input { Type=1, Data=new Union { Keyboard=new Keyboard { Scan=(ushort)(scan&255), Flags=flags | ((scan&0xff00)!=0?1u:0u) } } };
                 if(SendInput(1,new[] { input },Marshal.SizeOf(typeof(Input)))!=1) throw new Exception("CI input failed");
                 Pump(50);
             }

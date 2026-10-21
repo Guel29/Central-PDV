@@ -31,6 +31,12 @@ namespace SmartPDV.Diagnostics
             foreach (string secret in new[] { "001234567890", "998877665544", "scan_code", "key_sequence", "hash", "device_path" })
                 Check(!a.Contains(secret), "No secret or identifying sequence in summary");
             Summary.Parse(a);
+            var legacy=Summary.Parse(a); legacy.Remove("capture_health"); legacy["tool_version"]="0.1.0";
+            Summary.Parse(Summary.Serializer().Serialize(legacy));
+            var empty=Summary.Parse(Summary.Serializer().Serialize(new Summary("central","manual").Export(30000,"timeout",0,0,0)));
+            Check((string)((Dictionary<string,object>)empty["capture_health"])["status"]=="no_events","Empty capture is explicitly inconclusive");
+            Reject(()=>Summary.Parse(a.Replace("\"hook_callbacks\":0","\"hook_callbacks\":true")),"Health counters have strict types");
+            Reject(()=>Summary.Parse(a.Replace("\"input_desktop\":\"unavailable\"","\"input_desktop\":\"secret-desktop\"")),"Do not import desktop names");
             var report = Summary.Parse(a); var streams = (Dictionary<string, object>)report["streams"];
             var channel = (Dictionary<string, object>)streams["ll_injected"];
             Check((int)channel["digit"] == 12 && (int)channel["enter"] == 1, "Digit and suffix counts");
