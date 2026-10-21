@@ -69,8 +69,12 @@ namespace SmartPDV.Legacy
                 for(int i=0;i<scans.Length;i++)
                 {
                     var down=events[i*2];var up=events[i*2+1];
+                    // Windows adds LLKHF_EXTENDED to injected VK_RSHIFT; the
+                    // physical scan remains 0x36 without an E0 prefix.
+                    bool extended=(scans[i]&0xff00)!=0 || codes[i]=="ShiftRight";
                     if(down.Scan!=(uint)(scans[i]&255) || up.Scan!=down.Scan ||
-                       ((down.Flags&1)!=0)!=((scans[i]&0xff00)!=0) || ((up.Flags&1)!=0)!=((scans[i]&0xff00)!=0) ||
+                       ((down.Flags&1)!=0)!=extended || ((up.Flags&1)!=0)!=extended ||
+                       codes[i]=="ShiftRight" && (down.Key!=0xa1 || up.Key!=0xa1) ||
                        (down.Flags&128)!=0 || (up.Flags&128)==0)
                         throw new Exception("Physical scan code mismatch: "+codes[i]+" expected="+scans[i].ToString("x")+" down="+down.Key.ToString("x")+"/"+down.Scan.ToString("x")+"/"+down.Flags.ToString("x")+" up="+up.Key.ToString("x")+"/"+up.Scan.ToString("x")+"/"+up.Flags.ToString("x"));
                 }

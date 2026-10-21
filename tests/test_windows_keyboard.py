@@ -78,7 +78,12 @@ def test_native_desktop_scan_codes_and_release():
         for index,(_,code,scan) in enumerate(physical):
             down,up=events[index*2:index*2+2]
             assert down[1]==up[1]==scan&255, (code,scan,down,up)
-            assert bool(down[2]&1)==bool(up[2]&1)==bool(scan&0xff00), (code,scan,down,up)
+            # Windows normalizes injected right Shift to LLKHF_EXTENDED even
+            # though its set-1 scan (0x36) has no E0 prefix. Preserve that scan.
+            extended=bool(scan&0xff00) or code=='ShiftRight'
+            assert bool(down[2]&1)==bool(up[2]&1)==extended, (code,scan,down,up)
+            if code=='ShiftRight':
+                assert down[0]==up[0]==0xa1  # Actual VK_RSHIFT, not left Shift.
             assert not down[2]&128 and up[2]&128
         assert not desktop.held_keys
     finally:
