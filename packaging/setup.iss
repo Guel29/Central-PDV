@@ -4,7 +4,8 @@
 [Setup]
 AppId=SmartPDV-{#AppRole}
 AppName=Smart PDV {#AppRole}
-AppVersion=1.0.0
+AppVersion=1.0.1
+MinVersion=10.0
 DefaultDirName={localappdata}\Programs\SmartPDV-{#AppRole}
 DefaultGroupName=Smart PDV {#AppRole}
 OutputDir=..\dist\installers
@@ -36,9 +37,15 @@ Name: "{userstartup}\SmartPDV Agent"; Filename: "{app}\SmartPDV-Agent.exe"; Para
 Name: "{userstartup}\SmartPDV Central"; Filename: "{app}\SmartPDV-Central.exe"; Tasks: autostart
 #endif
 [Run]
-Filename: "{app}\SmartPDV-{#AppRole}.exe"; Parameters: "setup"; Description: "Configurar {#AppRole}"; Flags: postinstall skipifsilent
+Filename: "{app}\SmartPDV-{#AppRole}.exe"; Parameters: "setup"; Description: "Configurar {#AppRole}"; Flags: postinstall skipifsilent; Check: NeedsConfiguration
 
 #if AppRole == "Central"
 Filename: "{app}\SmartPDV-Central.exe"; Parameters: "trust-certificate"; Description: "Configurar confiança no certificado HTTPS local"; Flags: postinstall skipifsilent unchecked
 Filename: "{app}\SmartPDV-Central.exe"; Description: "Abrir Central"; Flags: postinstall skipifsilent unchecked
 #endif
+
+[Code]
+function NeedsConfiguration(): Boolean;
+begin
+  Result := not FileExists(ExpandConstant('{localappdata}\SmartPDV\{#AppRole}\{#AppRole}.json'));
+end;

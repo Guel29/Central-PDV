@@ -2,13 +2,15 @@
 import ctypes
 import io
 from PIL import ImageGrab
+from .windows_keyboard import ScanKeyboard
 
 
 class Desktop:
     def __init__(self, hotkey=True):
         self.user = ctypes.windll.user32
         self.user.SetProcessDPIAware()
-        self.held_keys = set()
+        self.keyboard = ScanKeyboard()
+        self.held_keys = {}
         self.held_buttons = set()
         self.hotkey = hotkey
         if hotkey and not self.user.RegisterHotKey(None, 1, 0x4000, 0x7A):
@@ -51,16 +53,25 @@ class Desktop:
             if key.startswith('F') and key[1:].isdigit() and 1 <= int(key[1:]) <= 12:
                 vk = 111 + int(key[1:])
             if vk is None and len(key) == 1:
-                code = self.user.VkKeyScanW(ord(key))
-                vk = code & 255 if code != -1 else None
+                vk = self.keyboard.character(key)
             if vk is not None:
                 down = event['action'] == 'down'
-                self.user.keybd_event(vk, 0, 0 if down else 2, 0)
-                (self.held_keys.add if down else self.held_keys.discard)(vk)
+                scan = self.held_keys.get(vk)
+                if scan is None:
+                    scan = self.keyboard.resolve(vk)
+                self.keyboard.send(scan, down)
+                if down:
+                    self.held_keys[vk] = scan
+                else:
+                    self.held_keys.pop(vk, None)
 
     def release(self):
-        for key in self.held_keys:
-            self.user.keybd_event(key, 0, 2, 0)
+        for scan in self.held_keys.values():
+            try:
+                self.keyboard.send(scan, False)
+            except OSError:
+                # A blocked/elevated desktop must not terminate reconnection cleanup.
+                pass
         for button in self.held_buttons:
             self.user.mouse_event(4 if button == 0 else 16, 0, 0, 0, 0)
         self.held_keys.clear()

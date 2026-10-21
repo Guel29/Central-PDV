@@ -54,3 +54,7 @@ Antes de produção, valide em dois PCs Windows reais: instalação, certificado
 ### Agent para Windows 7
 
 Existe um Agent separado em [legacy-agent](legacy-agent/README.md), destinado a **Windows 7 SP1, 32/64 bits, com .NET Framework 4.8**. A workflow `Windows 7 Agent` gera `SmartPDV-Agent-Win7-Setup.exe`. A Central permanece no Windows 10/11. Leia os requisitos e limites de validacao antes do teste no caixa.
+
+### Atualizacao de teclado Windows
+
+Agent Windows 10/11 x64 1.0.1 e Agent legado 0.1.1 usam SendInput com scan codes para a entrada remota (numeros EAN, Enter, modificadores e navegacao). Encerre o Agent e instale a atualizacao na mesma conta Windows. Cadastro e pareamento permanecem no perfil local. Os testes Windows verificam eventos nativos, liberacao de teclas e ABI de entrada. O VRPDV/LS2208 deve ser validado no equipamento de destino; entrada sintetica nao equivale a um leitor USB fisico. Instaladores modernos exigem Windows 10/11 x64; a versao legada publicada destina-se ao Windows 7 SP1 32/64 bits com .NET 4.8. Windows 8/8.1 e ARM nativo nao foram homologados.
