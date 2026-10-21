@@ -37,6 +37,13 @@ namespace SmartPDV.Legacy
             uint scan = MapVirtualKeyEx(virtualKey, 4, layout);
             if (scan == 0 || (scan & 0xff00) == 0xe100)
                 throw new NotSupportedException("Tecla sem scan code suportado.");
+            // Some layouts return the unprefixed keypad scan for navigation VKs.
+            // Keep navigation distinct from keypad digits regardless of Num Lock.
+            bool extended = (virtualKey >= 0x21 && virtualKey <= 0x28) ||
+                virtualKey == 0x2d || virtualKey == 0x2e || virtualKey == 0x5b ||
+                virtualKey == 0x5c || virtualKey == 0x5d || virtualKey == 0x6f ||
+                virtualKey == 0xa3 || virtualKey == 0xa5;
+            if (extended) scan = (scan & 0xff) | 0xe000;
             return (ushort)scan;
         }
         public static void Send(ushort scan, bool down)
