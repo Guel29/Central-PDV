@@ -9,7 +9,18 @@ O computador PDV é cadastrado, mesmo sem contas de usuários na Central. O núm
 
 ## Instalação e primeiro uso
 
-Os builds Windows para testes são publicados em **Releases** do repositório após build e testes bem-sucedidos no GitHub Actions. Baixe os dois `.exe` da mesma versão e confira `SHA256SUMS.txt`. Os instaladores incluem Python e dependências; os computadores de destino não precisam instalar Python ou acessar a internet. Binários ainda sem assinatura Authenticode.
+Os builds Windows para testes são publicados em **Releases** do repositório após build e testes bem-sucedidos no GitHub Actions. Use os pacotes compatíveis indicados abaixo e confira `SHA256SUMS.txt` da respectiva publicação. Os instaladores modernos incluem Python e dependências; os computadores de destino não precisam instalar Python ou acessar a internet. O Agent Win7 exige .NET 4.8. Binários ainda sem assinatura Authenticode.
+
+Atualização de teste de cadência do leitor, sem driver adicional:
+
+- [Central 1.0.10 — Windows 10/11 x64](https://github.com/Guel29/Central-PDV/releases/download/windows-test-18-1/SmartPDV-Central-Setup.exe).
+- [Agent 0.1.7 — Windows 7 SP1, .NET 4.8](https://github.com/Guel29/Central-PDV/releases/download/windows7-agent-20-1/SmartPDV-Agent-Win7-Setup.exe).
+- [Agent 1.0.10 — Windows 10/11 x64](https://github.com/Guel29/Central-PDV/releases/download/windows-test-18-1/SmartPDV-Agent-Setup.exe).
+
+Preserva os intervalos observados de rajadas numéricas curtas. Continua sendo
+entrada por `SendInput`, sem USB virtual, sem alteração da VR ou autorização por
+senha. **Não é correção comprovada do cartão fiscal no VRPDV.** Consulte o
+[procedimento de teste, comportamento e limitações](docs/teste-cadencia-leitor.md).
 
 1. Instale a Central no computador administrador. Em **Configuração inicial**, informe seu IP ou nome LAN estável. Não há usuário ou senha do aplicativo.
 2. Pelo menu Iniciar, abra **Smart PDV Central > Confiar no certificado local**. O aplicativo confere o fingerprint e solicita confirmação para adicionar o certificado ao armazenamento de confiança do usuário Windows. Não desative verificações TLS.
@@ -85,7 +96,7 @@ A consulta **Verificar permissões** permanece removida. O indicador de resultad
 
 Os cards e o atendimento mostram a versão informada pelo Agent conectado. Um Agent anterior aparece como **Agent sem versão informada**, pois a versão em execução não pode ser confirmada pelo servidor. A indicação não impede o controle, não consulta permissões Windows e não grava conteúdo digitado. A Central limpa a versão ao desconectar; cadastro e pareamento permanecem. O Agent legado também informa versão 0.1.6.0 nas propriedades do executável Windows.
 
-Ao atualizar no PDV, encerre `SmartPDV-Agent-Win7.exe` pelo Gerenciador de Tarefas, instale na mesma conta Windows e inicie pelo atalho **Iniciar Agent** do Menu Iniciar. Confira **Agent conectado: 0.1.6** na Central. A abertura manual avisa se outra instância estiver rodando; a inicialização automática segue silenciosa. No Windows 10/11, a versão atual é 1.0.9. O Agent legado permanece na versão 0.1.6.
+Ao atualizar no PDV, encerre `SmartPDV-Agent-Win7.exe` pelo Gerenciador de Tarefas, instale na mesma conta Windows e inicie pelo atalho **Iniciar Agent** do Menu Iniciar. Confira **Agent conectado: 0.1.7** na Central. A abertura manual avisa se outra instância estiver rodando; a inicialização automática segue silenciosa. No Windows 10/11, a versão atual de teste é 1.0.10; o Agent legado é 0.1.7.
 
 O teste como administrador não resolveu a leitura do cartão fiscal, e o usuário confirmou que o cartão contém só números. A identificação de versão serve para verificar o executável efetivo antes de continuar a investigação; **esta atualização não confirma a correção da falha no VRPDV e não muda o método de entrada**.
 

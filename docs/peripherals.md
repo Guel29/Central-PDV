@@ -37,4 +37,8 @@ Os testes automatizados verificam transporte TLS, autorizações, identidade fí
 
 ## Versão do Agent em execução (Central 1.0.8)
 
-O card e o atendimento mostram a versão informada na conexão autenticada do Agent: 0.1.6 no legado Windows 7 ou 1.0.9 no moderno. Em Agents anteriores, aparece **Agent sem versão informada**. Esse aviso não bloqueia o controle. Versão e identificador do protocolo ficam apenas em memória e são apagados ao desconectar; não contêm códigos, credenciais ou teclas. A informação é declarada pelo próprio Agent e não certifica o binário. A instalação de outra versão não garante que uma instância anterior tenha encerrado; confirme a versão na Central após iniciar o atalho instalado.
+O card e o atendimento mostram a versão informada na conexão autenticada do Agent: 0.1.7 no legado Windows 7 ou 1.0.10 no moderno. Em Agents anteriores, aparece **Agent sem versão informada**. Esse aviso não bloqueia o controle. Versão e identificador do protocolo ficam apenas em memória e são apagados ao desconectar; não contêm códigos, credenciais ou teclas. A informação é declarada pelo próprio Agent e não certifica o binário. A instalação de outra versão não garante que uma instância anterior tenha encerrado; confirme a versão na Central após iniciar o atalho instalado.
+
+### Cadência numérica — Central 1.0.10 / Agent Win7 0.1.7
+
+Sequências numéricas curtas podem preservar os intervalos observados no navegador, pelo mesmo canal de teclado e suas permissões. Isso não redireciona USB nem comprova compatibilidade fiscal. Veja [procedimento e limites](teste-cadencia-leitor.md).

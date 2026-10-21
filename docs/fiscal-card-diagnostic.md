@@ -1,5 +1,7 @@
 # Cartão fiscal: análise e diagnóstico sem registrar o cartão
 
+**Atualização:** há uma tentativa de preservação de cadência na Central 1.0.10 / Agent Win7 0.1.7, descrita em [teste-cadencia-leitor.md](teste-cadencia-leitor.md). A análise anterior abaixo não comprova o mecanismo fiscal da VR; a ferramenta de diagnóstico foi retirada do escopo a pedido do usuário. Não há USB virtual implementado.
+
 Status: a causa específica ainda não foi comprovada. Esta ferramenta **não é uma correção da leitura**. A VR deve continuar exigindo o cartão e validando-o normalmente. Nenhuma senha digitável, autorização automática ou alteração da VR é necessária para estes testes.
 
 ## Análise anterior à implementação

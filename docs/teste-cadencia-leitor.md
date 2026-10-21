@@ -81,3 +81,11 @@ teste e caminho antigo. Probes Windows verificam entrada nativa, marca de
 injeção e retirada do mínimo de 20 ms; o .NET é testado após instalação com TLS
 e rejeição de certificado incorreto. Não incluem VRPDV, cartão real, LS2208 físico
 ou máquina física Windows 7.
+
+Verificações desta atualização: 69 testes Python passaram no Linux (3 nativos
+Windows ignorados), testes JavaScript e dois roteiros Chromium passaram. O
+[build Windows moderno](https://github.com/Guel29/Central-PDV/actions/runs/39684467776)
+e o [build do Agent .NET](https://github.com/Guel29/Central-PDV/actions/runs/39684467727)
+passaram, incluindo testes nativos e instalados em Windows moderno.
+Os três instaladores publicados foram baixados e seus SHA-256 conferidos contra
+os manifestos das respectivas publicações.
