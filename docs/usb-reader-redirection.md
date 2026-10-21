@@ -74,7 +74,7 @@ A integração deve limitar-se ao atendimento ativo, limpar estados de teclas ao
 
 ### Alternativa somente por software: cadência
 
-O código atual do Agent impõe 20 ms mínimos por tecla e não preserva os tempos originais do leitor. Reprodução de uma leitura agrupada com cadência preservada é uma hipótese para telas que distinguem scanner por velocidade; não transforma a entrada em USB físico. A versão inicial também foi relatada com falha, portanto os 20 ms não podem ser declarados causa única. Sem identificar a regra da tela da VR ou obter uma comparação válida no equipamento, essa alternativa não foi implementada como se fosse uma correção comprovada.
+O caminho individual do Agent impõe 20 ms mínimos por tecla. A Central 1.0.10 e o Agent Win7 0.1.7 acrescentaram rajadas numéricas qualificadas com intervalos preservados, sem esse mínimo nesse caminho. A hipótese era compatibilidade com telas que distinguem scanner por velocidade; não transforma a entrada em USB físico. O usuário informou que a leitura fiscal continuou falhando no teste da atualização atual. A versão inicial também falhava; os 20 ms não podem ser declarados causa única. Veja o [resultado e a informação técnica necessária](leitura-fiscal-pendente.md). Não repetir a tentativa como correção comprovada nem dizer que a Central 1.0.11 introduziu outro método: ela acrescentou recuperação do JSON.
 
 ## Equipamentos atuais e tentativa de cadência
 

@@ -7,6 +7,11 @@ Dois aplicativos independentes na LAN, sem banco de dados nem serviço externo:
 
 O computador PDV é cadastrado, mesmo sem contas de usuários na Central. O número do caixa, UUID e credencial individual identificam qual PDV acionou F11. A comunicação usa WebSocket TLS direto com pin SHA-256 do certificado; a remoção do login não removeu o pareamento dos Agents.
 
+**Cartão fiscal VRPDV: ainda não funciona no teste relatado pelo usuário com a
+atualização atual.** A tentativa de preservar cadência não resolveu esse caso;
+a Central 1.0.11 acrescentou recuperação de JSON, sem outro motor de leitura.
+Não há USB remoto implementado. Veja o [estado da investigação](docs/leitura-fiscal-pendente.md).
+
 ## JSON de pareamento apagado
 
 Na Central 1.0.11, feche a Central e use **Menu Iniciar → Smart PDV Central → Gerar novo pareamento de PDV**. Informe o numero existente. Isso substitui somente a credencial desse caixa e exige reconfigurar seu Agent. Veja o [procedimento completo](docs/recuperar-pareamento.md). Não apague `central.json` nem recadastre os outros PDVs.

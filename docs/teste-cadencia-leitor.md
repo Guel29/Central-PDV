@@ -1,5 +1,15 @@
 # Teste do leitor — Central 1.0.10 / Agent Win7 0.1.7
 
+**Resultado informado pelo usuário:** a leitura fiscal continuou falhando no
+teste com a atualização atual, após a entrega da Central 1.0.11. A preservação
+de cadência não resolveu o problema nesse teste. Não apresentar os testes
+automatizados abaixo como homologação de cartão fiscal nem solicitar novamente
+o mesmo teste como se houvesse outro mecanismo de entrada. A versão 1.0.11
+acrescentou recuperação de pareamento, mantendo o motor de leitura anterior.
+
+O relato não identifica a API utilizada pela VR. Veja o
+[estado da investigação e a informação técnica que falta](leitura-fiscal-pendente.md).
+
 ## Análise
 
 O teclado remoto usa eventos DOM, WSS/TLS na LAN e `SendInput` por scan codes
