@@ -38,3 +38,9 @@ exportação não ativada: nesse caso, gere novamente antes de transferir.
 Se somente atualizou o aplicativo e o Agent continua configurado, não precisa
 gerar outro JSON. Se o arquivo ainda existir na pasta de pareamento, pode usar
 essa cópia, desde que corresponda ao cadastro atual.
+
+## Verificação desta atualização
+
+Passaram 74 testes no Linux (3 testes nativos Windows ignorados). O [build Windows](https://github.com/Guel29/Central-PDV/actions/runs/39690214375) passou nos testes nativos, de transporte, de instalação e do novo atalho. Os testes de recuperação verificam preservação dos outros cadastros, rejeição da credencial antiga, conexão TLS com a nova credencial, recusa com Central aberta e falha de gravação sem revogar o cadastro anterior. Os instaladores publicados foram baixados e seus SHA-256 conferidos.
+
+[Baixar Central 1.0.11](https://github.com/Guel29/Central-PDV/releases/download/windows-test-19-1/SmartPDV-Central-Setup.exe).
