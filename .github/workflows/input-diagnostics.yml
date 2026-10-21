@@ -1,0 +1,74 @@
+name: Input diagnostics (passive)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'diagnostics/**'
+      - 'docs/fiscal-card-diagnostic.md'
+      - '.github/workflows/input-diagnostics.yml'
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build standalone .NET 4.8 x86 observer
+        shell: pwsh
+        run: |
+          msbuild diagnostics/SmartPDV-Input-Diagnostic.csproj /p:Configuration=Release /nologo /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic compilation failed' }
+      - name: Verify privacy, export, actual Windows input observation and GUI
+        working-directory: diagnostics
+        shell: pwsh
+        run: |
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:DiagnosticsTests.exe /main:SmartPDV.Diagnostics.Tests /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll Summary.cs NativeCapture.cs Program.cs Tests.cs 2>&1 | Tee-Object compile-tests.log
+          if ($LASTEXITCODE -ne 0) {
+            $details = (Get-Content compile-tests.log | Select-Object -Last 15) -join '%0A'
+            Write-Host "::error::$details"
+            throw 'Diagnostic tests compilation failed'
+          }
+          & ./DiagnosticsTests.exe 2>&1 | Tee-Object diagnostic-tests.log
+          if ($LASTEXITCODE -ne 0) {
+            $details = (Get-Content diagnostic-tests.log | Select-Object -Last 15) -join '%0A'
+            Write-Host "::error::$details"
+            throw 'Diagnostic verification failed'
+          }
+      - name: Package portable diagnostic without modifying Central or Agent
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diagnostics/dist | Out-Null
+          Copy-Item diagnostics/bin/Release/SmartPDV-Input-Diagnostic.exe diagnostics/dist/
+          Copy-Item diagnostics/bin/Release/SmartPDV-Input-Diagnostic.exe.config diagnostics/dist/
+          Copy-Item docs/fiscal-card-diagnostic.md diagnostics/dist/LEIA-ME.md
+          Get-ChildItem diagnostics/dist/* | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content -Encoding utf8 diagnostics/dist/SHA256SUMS.txt
+          Compress-Archive diagnostics/dist/* diagnostics/SmartPDV-Input-Diagnostic.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartPDV-Input-Diagnostic
+          path: |
+            diagnostics/SmartPDV-Input-Diagnostic.zip
+            diagnostics/dist/SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Publish diagnostic test tool
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "input-diagnostic-$env:GITHUB_RUN_NUMBER-$env:GITHUB_RUN_ATTEMPT"
+          $notes = Join-Path $env:RUNNER_TEMP 'input-diagnostic-release.md'
+          @'
+          Ferramenta de diagnostico passivo 0.1.0, separada da Central 1.0.9 e do Agent legado 0.1.6. Nao e uma correcao comprovada do cartao fiscal.
+          Requer Windows 7 SP1 com .NET Framework 4.8 ou Windows mais recente com .NET 4.8. Compilada x86; testes nativos realizados no runner Windows atual, sem hardware LS2208 ou VRPDV.
+          Coleta manual, espera de 5 segundos e limite de 30 segundos. Apenas categorias, contagens e faixas de tempo; nao guarda digitos, sequencias, hashes de cartoes ou caminhos dos dispositivos.
+          Nao envia comandos, nao abre portas de rede, nao modifica o Agent, nao instala drivers e nao altera a validacao da VR. Nao substitui o controle de acesso da Central.
+          Extraia o ZIP e leia LEIA-ME.md. Binario para testes, sem assinatura Authenticode. Confira SHA256SUMS.txt.
+          '@ | Set-Content -Encoding utf8 $notes
+          gh release create $tag diagnostics/SmartPDV-Input-Diagnostic.zip diagnostics/dist/SmartPDV-Input-Diagnostic.exe diagnostics/dist/SmartPDV-Input-Diagnostic.exe.config diagnostics/dist/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "Smart Control - diagnostico de entrada $env:GITHUB_RUN_NUMBER" --notes-file $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic publication failed' }

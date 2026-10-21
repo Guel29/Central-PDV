@@ -88,3 +88,7 @@ Os cards e o atendimento mostram a versão informada pelo Agent conectado. Um Ag
 Ao atualizar no PDV, encerre `SmartPDV-Agent-Win7.exe` pelo Gerenciador de Tarefas, instale na mesma conta Windows e inicie pelo atalho **Iniciar Agent** do Menu Iniciar. Confira **Agent conectado: 0.1.6** na Central. A abertura manual avisa se outra instância estiver rodando; a inicialização automática segue silenciosa. No Windows 10/11, a versão atual é 1.0.9. O Agent legado permanece na versão 0.1.6.
 
 O teste como administrador não resolveu a leitura do cartão fiscal, e o usuário confirmou que o cartão contém só números. A identificação de versão serve para verificar o executável efetivo antes de continuar a investigação; **esta atualização não confirma a correção da falha no VRPDV e não muda o método de entrada**.
+
+### Diagnóstico do cartão fiscal
+
+A leitura de produtos pela Central foi confirmada como funcional; a falha é na autorização por cartão fiscal. Há uma [ferramenta passiva de comparação e procedimento supervisionado](docs/fiscal-card-diagnostic.md), separada dos aplicativos operacionais. Ela não guarda o código do cartão, não altera a VR nem o método de entrada e não é apresentada como correção comprovada.

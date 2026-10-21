@@ -5,3 +5,7 @@ build/
 dist/
 *.spec
 *.egg-info/
+diagnostics/bin/
+diagnostics/obj/
+diagnostics/dist/
+diagnostics/SmartPDV-Input-Diagnostic.zip

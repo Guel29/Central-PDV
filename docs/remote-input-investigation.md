@@ -1,5 +1,7 @@
 # Investigacao da leitura no VRPDV
 
+**Atualização do relato:** o usuário confirmou que o EAN remoto de produtos funciona, que digitação/colar não liberam o cartão e que autorização remota por senha funciona quando habilitada. A configuração voltou a exigir só cartão. A versão 0.1.6 informada é do SmartPDV Agent, não da VR. Esses dados substituem as dúvidas anteriores sobre venda remota; o histórico abaixo foi preservado. Veja a [análise atual e o diagnóstico sem números do cartão](fiscal-card-diagnostic.md).
+
 Evidencia do usuario: o mesmo Symbol LS2208 e a digitacao fisica funcionam no VRPDV localmente e por um AnyDesk instalado. Pelo Smart PDV, a entrada chega ao Bloco de Notas remoto, mas nao funciona no VRPDV. Logo, o transporte basico nao demonstra compatibilidade com o aplicativo de destino.
 
 O Agent atual e um processo interativo `asInvoker`, iniciado na conta do caixa, sem servico privilegiado. Usa SendInput com scan codes e uma duracao minima por tecla. Um processo pode ter entrada recusada pelo Windows quando tenta controlar outro de nivel superior. Mesmo quando SendInput retorna sucesso, isso nao confirma que o VRPDV consumiu a entrada.
