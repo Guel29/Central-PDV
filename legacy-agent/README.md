@@ -40,3 +40,7 @@ A versao 0.1.5 reconhece as identificacoes fisicas enviadas pela Central 1.0.6: 
 ### Atualizacao 0.1.6
 
 Informa a versao do Agent conectado para a Central 1.0.8, junto do identificador do protocolo de teclado, sem transmitir conteudo digitado nesse metadado. O executavel possui versao de arquivo 0.1.6.0. A abertura manual avisa quando outra instancia ja esta rodando, em vez de encerrar silenciosamente; --background continua silencioso. O inicio escolhido ao terminar o instalador e uma abertura manual, e o atalho de inicializacao do Windows continua em segundo plano. Encerre a instancia anterior antes de atualizar e confira a versao 0.1.6 no card da Central. Esta versao nao altera o metodo de entrada por scan codes nem comprova correcao da leitura do cartao fiscal no VRPDV.
+
+### Atualizacao 0.1.7
+
+Com a Central 1.0.10, recebe rajadas numericas curtas com intervalos observados, sem o minimo artificial de 20 ms nesse caminho. Preserva teclado comum e pareamento; nao e USB/HID nem correcao homologada do cartao fiscal. Veja [procedimento e limites](../docs/teste-cadencia-leitor.md). Encerre a instancia antiga antes de atualizar e confira Agent conectado 0.1.7 no card.

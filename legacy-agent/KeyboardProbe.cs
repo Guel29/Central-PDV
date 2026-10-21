@@ -78,7 +78,32 @@ namespace SmartPDV.Legacy
                        (down.Flags&128)!=0 || (up.Flags&128)==0)
                         throw new Exception("Physical scan code mismatch: "+codes[i]+" expected="+scans[i].ToString("x")+" down="+down.Key.ToString("x")+"/"+down.Scan.ToString("x")+"/"+down.Flags.ToString("x")+" up="+up.Key.ToString("x")+"/"+up.Scan.ToString("x")+"/"+up.Flags.ToString("x"));
                 }
-                Console.WriteLine("PASS Windows SendInput: EAN, physical keypad vs top-row, Enter vs keypad Enter, sided modifiers, Windows key and release");
+                events.Clear(); times.Clear();
+                var burst=new List<Dictionary<string,object>>();
+                string test="001234567890";
+                for(int i=0;i<=test.Length;i++)
+                {
+                    string key=i==test.Length?"Enter":test[i].ToString();
+                    string code=i==test.Length?"Enter":"Digit"+key;
+                    for(int j=0;j<2;j++)burst.Add(new Dictionary<string,object>{{"key",key},{"code",code},{"action",j==0?"down":"up"},{"at_ms",i*4+j}});
+                }
+                var packet=new Dictionary<string,object>{{"kind","key_sequence"},{"events",burst}};
+                // Round-trip the exact wire representation, including array/integer types.
+                packet=JsonFiles.Serializer().Deserialize<Dictionary<string,object>>(JsonFiles.Serializer().Serialize(packet));
+                if(!desktop.Input(packet))throw new Exception("Timed sequence rejected");
+                Application.DoEvents();
+                if(events.Count!=burst.Count)throw new Exception("Missing timed events");
+                if((times[times.Count-1]-times[0])*1000.0/Stopwatch.Frequency>=200)
+                    throw new Exception("Artificial minimum hold remains in timed sequence");
+                for(int i=0;i<burst.Count;i++)
+                {
+                    uint expected=i/2==test.Length?13u:(uint)test[i/2];
+                    if(events[i].Key!=expected || (events[i].Flags&16)==0 || ((events[i].Flags&128)!=0)!=(i%2==1))
+                        throw new Exception("Timed sequence changed key/order or injected flag");
+                }
+                packet["events"]=new object[0];
+                if(desktop.Input(packet))throw new Exception("Invalid timed sequence accepted");
+                Console.WriteLine("PASS Windows SendInput: ordinary minimum hold, physical keys, cleanup, bounded timed numeric sequence and preserved injected flag");
                 return 0;
             }
             finally { UnhookWindowsHookEx(handle); GC.KeepAlive(callback); }

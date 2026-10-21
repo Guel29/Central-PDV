@@ -20,12 +20,12 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: System.Reflection.AssemblyVersion("0.1.6.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.1.6.0")]
+[assembly: System.Reflection.AssemblyVersion("0.1.7.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.1.7.0")]
 
 namespace SmartPDV.Legacy
 {
-    static class BuildInfo { public const string Version = "0.1.6"; }
+    static class BuildInfo { public const string Version = "0.1.7"; }
 
     static class JsonFiles
     {
@@ -156,7 +156,7 @@ namespace SmartPDV.Legacy
                 string headers = "GET /agent HTTP/1.1\r\nHost: " + host + ":" + c.Port +
                     "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + key +
                     "\r\nAuthorization: Bearer " + c.Token + "\r\nX-Computer-ID: " + c.ComputerId +
-                    "\r\nX-SmartPDV-Version: " + BuildInfo.Version + "\r\nX-SmartPDV-Keyboard: scan-code-v1\r\n\r\n";
+                    "\r\nX-SmartPDV-Version: " + BuildInfo.Version + "\r\nX-SmartPDV-Keyboard: scan-code-v1\r\nX-SmartPDV-Timed-Keys: numeric-v1\r\n\r\n";
                 byte[] request = Encoding.ASCII.GetBytes(headers); stream.Write(request, 0, request.Length);
                 var response = new StringBuilder();
                 while (!response.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal))
@@ -292,6 +292,28 @@ namespace SmartPDV.Legacy
             lock (inputLock)
             {
                 string kind = (string)e["kind"];
+                if(kind=="key_sequence")
+                {
+                    var sequence=TimedKeys.Validate(e);
+                    if(sequence==null || keys.Count!=0) return false;
+                    try
+                    {
+                        TimedKeys.Replay(sequence,delegate(Dictionary<string,object> item) {
+                            ushort scan; string code=(string)item["code"];
+                            if(!ScanKeyboard.TryPhysical(code,out scan)) throw new InvalidOperationException("Scan code indisponivel.");
+                            bool down=(string)item["action"]=="down";
+                            ScanKeyboard.Send(scan,down,true);
+                            if(down)keys[code]=scan; else keys.Remove(code);
+                        });
+                    }
+                    finally
+                    {
+                        foreach(ushort scan in keys.Values)
+                            try { ScanKeyboard.Send(scan,false,true); } catch(System.ComponentModel.Win32Exception) { }
+                        keys.Clear();
+                    }
+                    return true;
+                }
                 if (kind == "release") { Release(); return false; }
                 if (kind == "wheel")
                 {

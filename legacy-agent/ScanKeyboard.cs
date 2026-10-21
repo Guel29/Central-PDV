@@ -85,12 +85,12 @@ namespace SmartPDV.Legacy
             if (extended) scan = (scan & 0xff) | 0xe000;
             return (ushort)scan;
         }
-        public static void Send(ushort scan, bool down)
+        public static void Send(ushort scan, bool down, bool preserveTiming = false)
         {
             lock (Sync)
             {
             long started;
-            if (!down && Pressed.TryGetValue(scan, out started))
+            if (!preserveTiming && !down && Pressed.TryGetValue(scan, out started))
             {
                 while (true)
                 {

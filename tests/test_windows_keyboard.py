@@ -86,6 +86,20 @@ def test_native_desktop_scan_codes_and_release():
                 assert down[0]==up[0]==0xa1  # Actual VK_RSHIFT, not left Shift.
             assert not down[2]&128 and up[2]&128
         assert not desktop.held_keys
+        events.clear()
+        # Observed one-ms press times must not acquire the ordinary 20-ms hold.
+        from test_timed_keys import sequence
+        burst=sequence('001234567890')
+        assert desktop.input(burst)
+        deadline=time.monotonic()+3
+        while len(events)<len(burst['events']) and time.monotonic()<deadline:
+            while user.PeekMessageW(c.byref(message),None,0,0,1):
+                user.TranslateMessage(c.byref(message));user.DispatchMessageW(c.byref(message))
+        assert len(events)==len(burst['events'])
+        assert [vk for vk,scan,flags,stamp in events[::2]]==[ord(k) for k in '001234567890']+[13]
+        assert all(flags&16 for vk,scan,flags,stamp in events)  # Remains injected, never fake hardware.
+        assert events[-1][3]-events[0][3]<.2  # Old path requires >=260 ms.
+        assert not desktop.held_keys
     finally:
         user.UnhookWindowsHookEx(hook)
         desktop.close()

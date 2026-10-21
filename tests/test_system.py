@@ -127,6 +127,48 @@ def test_central_authorizes_direct_keyboard_and_mouse(tmp_path):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize('capable',[False,True])
+def test_timed_sequence_requires_capability_owner_and_keyboard_permission(tmp_path,capable):
+    from test_timed_keys import sequence
+    async def scenario():
+        pin=Fingerprint(bytes.fromhex(prepare(tmp_path)))
+        central,runner,port=await start(tmp_path);url=f'https://127.0.0.1:{port}'
+        burst=sequence()
+        try:
+            async with ClientSession() as client:
+                headers={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN}
+                if capable: headers['X-SmartPDV-Timed-Keys']='numeric-v1'
+                agent=await client.ws_connect(url+'/agent',ssl=pin,headers=headers)
+                owner=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
+                other=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
+                await state(owner,lambda s:s['online'])
+                assert central.state[1]['timed_keys'] is capable
+                await owner.send_json({'type':'start','number':1})
+                assert (await agent.receive_json())=={'type':'session','active':True}
+                await state(owner,lambda s:s['active'])
+                await owner.send_json({'type':'input','number':1,'event':burst})
+                await owner.send_json({'type':'input','number':1,'event':{'kind':'release'}})
+                if capable: assert (await agent.receive_json())=={'type':'input','event':burst}
+                assert (await agent.receive_json())['event']=={'kind':'release'}
+                # A second console session cannot inject into another owner's PDV.
+                await other.send_json({'type':'input','number':1,'event':burst})
+                await other.send_json({'type':'peripherals','settings':{'keyboard':False,'mouse':True}})
+                assert (await agent.receive_json())['event']=={'kind':'release'}
+                await message_type(other,'peripherals_saved')
+                await owner.send_json({'type':'input','number':1,'event':burst})
+                await owner.send_json({'type':'input','number':1,'event':{'kind':'release'}})
+                assert (await agent.receive_json())['event']=={'kind':'release'}
+                await owner.send_json({'type':'end','number':1})
+                assert (await agent.receive_json())=={'type':'session','active':False}
+                await owner.close();await other.close();await agent.close()
+                assert central.state[1]['timed_keys'] is False
+                for path in tmp_path.rglob('*'):
+                    if path.is_file() and path.suffix in ('.json','.jsonl'):
+                        assert '001234567890' not in path.read_text()
+        finally: await runner.cleanup()
+    asyncio.run(scenario())
+
+
 def test_authorization_save_failure_keeps_previous_settings(tmp_path,monkeypatch):
     def failed_write(*args):
         raise OSError('storage unavailable')

@@ -8,11 +8,15 @@ let peripherals = {keyboard:true,mouse:true};
 let knownPending = new Set();
 function send(data) { if(socket?.readyState !== WebSocket.OPEN)return false;socket.send(JSON.stringify(data));return true; }
 function input(event) {
+  if(event.kind==='release')keyboard.cancel();
+  else if(!['key','key_sequence'].includes(event.kind))keyboard.flush();
   if(selected === null)return;
-  if(event.kind==='key' && !peripherals.keyboard)return;
+  if(['key','key_sequence'].includes(event.kind) && !peripherals.keyboard)return;
   if(['mouse','wheel'].includes(event.kind) && !peripherals.mouse)return;
   send({type:'input',number:selected,event});
 }
+const keyboard=new TimedNumericKeys(input,()=>peripherals.keyboard && selected!==null &&
+  pdvs.some(p=>p.number===selected && p.online && p.active && p.timed_keys));
 function updateControls() {
   $('windows-key').disabled=!peripherals.keyboard || selected===null;
   const disabled = [!peripherals.keyboard && 'Teclado desativado na configuração da Central',
@@ -59,7 +63,7 @@ function render() {
   if(selected!==null) {
     const p=pdvs.find(p=>p.number===selected);
     $('agent-version').textContent=agentVersion(p);
-    if(!p?.online || (!p.active && !p.pending)) {selected=null;updateControls();$('remote').close();}
+    if(!p?.online || (!p.active && !p.pending)) {keyboard.cancel();selected=null;updateControls();$('remote').close();}
     else if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
   }
   updateAlarm();
@@ -96,6 +100,7 @@ function connect() {
     const data=JSON.parse(e.data);
     if(data.type==='state'){pdvs=data.pdvs;alarm=data.alarm;
       peripherals=data.peripherals || {keyboard:true,mouse:true};
+      if(!peripherals.keyboard)keyboard.cancel();
       updateControls();
       $('cards').style.setProperty('--columns',Math.max(1,Math.min(8,data.dashboard.columns||4)));render();}
     else if(data.type==='opened'){showRemote(data.number);opening=null;}
@@ -117,7 +122,7 @@ function connect() {
   };
   socket.onclose=async()=>{
     $('connection').textContent='Central desconectada · Reconectando';
-    clearInterval(alarmTimer);lastPending=false;selected=null;updateControls();$('remote').close();
+    clearInterval(alarmTimer);keyboard.cancel();lastPending=false;selected=null;updateControls();$('remote').close();
     for(const {card,info} of cards.values()){card.className='card offline';card.disabled=true;info.textContent='Conexão com a Central perdida';}
     if(!stopped){
       try{
@@ -155,9 +160,11 @@ function point(e,action){
 screen.onpointermove=e=>{if(performance.now()-lastMove>35){point(e,'move');lastMove=performance.now();}};
 screen.onpointerdown=e=>{e.preventDefault();screen.focus();screen.setPointerCapture(e.pointerId);point(e,'down');};
 screen.onpointerup=e=>{e.preventDefault();point(e,'up');};screen.oncontextmenu=e=>e.preventDefault();
-for(const action of ['down','up'])screen.addEventListener('key'+action,e=>{e.preventDefault();input({kind:'key',action,key:e.key,code:e.code});});
+for(const action of ['down','up'])screen.addEventListener('key'+action,e=>{e.preventDefault();keyboard.key(e,action);});
 screen.onblur=()=>input({kind:'release'});
 screen.onpointercancel=()=>input({kind:'release'});
+window.addEventListener('blur',()=>input({kind:'release'}));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)input({kind:'release'});});
 screen.addEventListener('wheel',e=>{e.preventDefault();input({kind:'wheel',delta:e.deltaY<0?120:-120});},{passive:false});
 
 // Entrada direta, restrita ao computador Central, com sessão local automática.

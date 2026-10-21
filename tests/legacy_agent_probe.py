@@ -39,8 +39,9 @@ async def scenario(executable):
                     processes.append(p)
                     phase='waiting for Agent request'
                     await state(dashboard,lambda s:s['online'] and s['pending'])
-                    assert central.state[1]['agent_version']=='0.1.6'
+                    assert central.state[1]['agent_version']=='0.1.7'
                     assert central.state[1]['keyboard_protocol']=='scan-code-v1'
+                    assert central.state[1]['timed_keys'] is True
                     await dashboard.send_json({'type':'start','number':1})
                     phase='waiting for active session'
                     await state(dashboard,lambda s:s['active'])

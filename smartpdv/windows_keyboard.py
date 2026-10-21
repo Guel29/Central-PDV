@@ -57,8 +57,8 @@ class ScanKeyboard:
             scan = scan & 0xff | 0xe000
         return scan
 
-    def send(self, scan, down):
-        if not down and scan in self.pressed:
+    def send(self, scan, down, *, preserve_timing=False):
+        if not preserve_timing and not down and scan in self.pressed:
             while True:
                 remaining = self.minimum_press - (time.perf_counter() - self.pressed[scan])
                 if remaining <= 0:

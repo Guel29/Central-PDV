@@ -75,3 +75,9 @@ A integração deve limitar-se ao atendimento ativo, limpar estados de teclas ao
 ### Alternativa somente por software: cadência
 
 O código atual do Agent impõe 20 ms mínimos por tecla e não preserva os tempos originais do leitor. Reprodução de uma leitura agrupada com cadência preservada é uma hipótese para telas que distinguem scanner por velocidade; não transforma a entrada em USB físico. A versão inicial também foi relatada com falha, portanto os 20 ms não podem ser declarados causa única. Sem identificar a regra da tela da VR ou obter uma comparação válida no equipamento, essa alternativa não foi implementada como se fosse uma correção comprovada.
+
+## Equipamentos atuais e tentativa de cadência
+
+O usuário confirmou que a solução deve usar **somente os computadores e leitores atuais**, sem adaptadores. Mantém Windows 7 e gratuidade. A ponte física permanece excluída.
+
+Foi identificada uma alteração artificial de cadência no teclado remoto; a tentativa de preservá-la está descrita em [teste-cadencia-leitor.md](teste-cadencia-leitor.md). Essa melhoria não implementa redirecionamento USB e não confirma o mecanismo de autorização fiscal da VR.

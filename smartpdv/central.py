@@ -14,6 +14,7 @@ from contextlib import AsyncExitStack
 from aiohttp import web, WSMsgType
 from .security import token_hash
 from .storage import load_json, atomic_json
+from .timed_keys import valid_sequence
 
 
 def now():
@@ -35,9 +36,10 @@ class Central:
         self.locks = {p['number']: asyncio.Lock() for p in self.config['pdvs']}
         self.state = {p['number']: dict(number=p['number'], online=False, pending=False,
                       active=False, thumbnail=None, connected_at=None, requested_at=None,
-                      supervisor=None, attended_at=None, owner=None, agent_version=None, keyboard_protocol=None) for p in self.config['pdvs']}
+                      supervisor=None, attended_at=None, owner=None, agent_version=None, keyboard_protocol=None, timed_keys=False) for p in self.config['pdvs']}
         self.app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[self.errors])
         self.app.add_routes([web.get('/', self.index), web.get('/app.js', self.asset),
+                            web.get('/timed-keys.js', self.asset),
                             web.get('/style.css', self.asset), web.get('/session', self.session_info), web.get('/dashboard', self.dashboard),
                             web.get('/agent', self.agent), web.get('/health', self.health)])
         self.app.on_startup.append(self.start)
@@ -188,7 +190,8 @@ class Central:
                             await self.end(s, data.get('result', 'Concluído'))
                         elif data['type'] == 'input' and s['owner'] == id(ws):
                             event = data['event']
-                            if self.valid_input(event) and self.input_allowed(event):
+                            if (self.valid_input(event) and self.input_allowed(event)
+                                    and (event['kind'] != 'key_sequence' or s['timed_keys'])):
                                 await agent.send_json({'type': 'input', 'event': event})
                             continue
                     await self.publish()
@@ -211,13 +214,15 @@ class Central:
 
     def input_allowed(self,event):
         if event.get('kind') == 'release': return True
-        key = 'keyboard' if event.get('kind') == 'key' else 'mouse'
+        key = 'keyboard' if event.get('kind') in ('key','key_sequence') else 'mouse'
         return self.config['peripherals'][key]
 
     @staticmethod
     def valid_input(event):
         if not isinstance(event, dict):
             return False
+        if event.get('kind') == 'key_sequence':
+            return valid_sequence(event)
         if event.get('kind') == 'release':
             return True
         if event.get('kind') == 'wheel':
@@ -290,6 +295,7 @@ class Central:
         version = version if re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}',version) else None
         protocol = request.headers.get('X-SmartPDV-Keyboard')
         s.update(online=True, connected_at=now(), agent_version=version,
+                 timed_keys=request.headers.get('X-SmartPDV-Timed-Keys') == 'numeric-v1',
                  keyboard_protocol=protocol if protocol=='scan-code-v1' else None)
         await self.publish()
         last_frame = 0
@@ -326,7 +332,7 @@ class Central:
             self.agents.pop(number, None)
             async with self.locks[number]:
                 await self.end(s, 'PDV desconectado')
-                s.update(online=False, active=False, thumbnail=None, connected_at=None, agent_version=None, keyboard_protocol=None)
+                s.update(online=False, active=False, thumbnail=None, connected_at=None, agent_version=None, keyboard_protocol=None, timed_keys=False)
             await self.publish()
         return ws
 

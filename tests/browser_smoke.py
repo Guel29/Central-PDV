@@ -86,14 +86,23 @@ async def main():
     await agent.close()
     await reader
     await page.locator('.card.offline').wait_for()
-    agent=await client.ws_connect(f'https://127.0.0.1:{port}/agent',ssl=Fingerprint(bytes.fromhex(pin)),headers={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN,'X-SmartPDV-Version':'0.1.6','X-SmartPDV-Keyboard':'scan-code-v1'})
+    agent=await client.ws_connect(f'https://127.0.0.1:{port}/agent',ssl=Fingerprint(bytes.fromhex(pin)),headers={'X-Computer-ID':'test-device','Authorization':'Bearer '+TOKEN,'X-SmartPDV-Version':'0.1.7','X-SmartPDV-Keyboard':'scan-code-v1','X-SmartPDV-Timed-Keys':'numeric-v1'})
     reader=asyncio.create_task(read_agent())
     await page.locator('.card:not(.offline)').wait_for()
-    assert '0.1.6' in await page.locator('.card').text_content()
+    assert '0.1.7' in await page.locator('.card').text_content()
     await page.locator('.card').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
-    assert await page.locator('#agent-version').text_content()=='Agent conectado: 0.1.6'
+    assert await page.locator('#agent-version').text_content()=='Agent conectado: 0.1.7'
+    await page.evaluate('''() => {
+      const screen=document.getElementById('screen');screen.focus();
+      for(const key of [...'001234567890','Enter'])for(const action of ['down','up'])
+        screen.dispatchEvent(new KeyboardEvent('key'+action,{key,code:key==='Enter'?'Enter':'Digit'+key,cancelable:true}));
+    }''')
+    command=await asyncio.wait_for(commands.get(),5)
+    from smartpdv.timed_keys import valid_sequence
+    assert command['type']=='input' and valid_sequence(command['event'])
+    assert ''.join(e['key'] for e in command['event']['events'] if e['action']=='down')=='001234567890Enter'
     await page.locator('#close').click()
     await asyncio.wait_for(ended(),5)
     await agent.close()

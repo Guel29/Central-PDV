@@ -4,10 +4,12 @@ import io
 from PIL import ImageGrab
 from .windows_keyboard import ScanKeyboard
 from .key_codes import PHYSICAL_SCANS
+from .timed_keys import valid_sequence, replay
 
 
 class Desktop:
     keyboard_protocol = 'scan-code-v1'
+    timed_keys = 'numeric-v1'
 
     def __init__(self, hotkey=True, minimum_press_ms=20):
         self.user = ctypes.windll.user32
@@ -32,6 +34,28 @@ class Desktop:
         return out.getvalue()
 
     def input(self, event):
+        if event['kind'] == 'key_sequence':
+            if not valid_sequence(event) or self.held_keys:
+                return False
+            def send(item):
+                scan = PHYSICAL_SCANS[item['code']]
+                down = item['action'] == 'down'
+                self.keyboard.send(scan, down, preserve_timing=True)
+                if down:
+                    self.held_keys[item['code']] = scan
+                else:
+                    self.held_keys.pop(item['code'], None)
+            try:
+                replay(event['events'], send)
+            finally:
+                # Clean up even when Windows refuses a transition partway through.
+                for scan in self.held_keys.values():
+                    try:
+                        self.keyboard.send(scan, False, preserve_timing=True)
+                    except OSError:
+                        pass
+                self.held_keys.clear()
+            return True
         if event['kind'] == 'release':
             return self.release()
         if event['kind'] == 'wheel':

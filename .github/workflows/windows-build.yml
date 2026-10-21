@@ -42,6 +42,8 @@ jobs:
       - name: Test installed Windows applications
         shell: pwsh
         run: ./packaging/windows-smoke.ps1
+      - name: Verify timed browser keyboard capture
+        run: node tests/timed_keys_test.js
       - name: Compute SHA256 checksums
         shell: pwsh
         run: |
@@ -63,7 +65,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'smartpdv-release.md'
           @'
           Dois instaladores independentes para testes em Windows 10/11 x64.
-          Atualizacao 1.0.9: remove da interface o painel Autorizações de entrada e os controles de salvar teclado e mouse. Preserva as configuracoes existentes, o pareamento TLS e o controle remoto. Esta limpeza da interface nao altera o metodo de entrada nem confirma correcao da leitura do cartao fiscal no VRPDV.
+          Atualizacao 1.0.10: preserva os intervalos observados de rajadas numericas curtas no Agent atualizado (Win7 0.1.7 ou moderno 1.0.10). Mantem zeros, scan codes e Enter observado, sem registrar conteudo. Agents antigos mantem entrada individual. Continua usando SendInput; nao e redirecionamento USB nem correcao homologada do cartao fiscal VRPDV.
           Central: dashboard local HTTPS. Agent: captura/controle Windows reais, sem console, inicialização após login.
           Cadastre e pareie somente computadores autorizados da LAN. Configure o certificado local na Central.
           Binários sem assinatura Authenticode. Esta versão é para testes; captura e entrada física precisam de validação nos computadores de destino.
