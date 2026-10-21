@@ -75,10 +75,10 @@ def test_native_desktop_scan_codes_and_release():
                 user.TranslateMessage(c.byref(message));user.DispatchMessageW(c.byref(message))
             time.sleep(.001)
         assert len(events)==2*len(physical),events
-        for index,(_,_,scan) in enumerate(physical):
+        for index,(_,code,scan) in enumerate(physical):
             down,up=events[index*2:index*2+2]
-            assert down[1]==up[1]==scan&255
-            assert bool(down[2]&1)==bool(up[2]&1)==bool(scan&0xff00)
+            assert down[1]==up[1]==scan&255, (code,scan,down,up)
+            assert bool(down[2]&1)==bool(up[2]&1)==bool(scan&0xff00), (code,scan,down,up)
             assert not down[2]&128 and up[2]&128
         assert not desktop.held_keys
     finally:
