@@ -81,11 +81,6 @@ namespace SmartPDV.Diagnostics
             var clock = Stopwatch.StartNew();
             while (clock.ElapsedMilliseconds < milliseconds) { Application.DoEvents(); System.Threading.Thread.Sleep(1); }
         }
-        delegate IntPtr Witness(int code, IntPtr message, IntPtr data);
-        [DllImport("user32.dll", SetLastError=true)] static extern IntPtr SetWindowsHookEx(int id, Witness callback, IntPtr module, uint thread);
-        [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);
-        [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr message, IntPtr data);
-        [DllImport("kernel32.dll", CharSet=CharSet.Auto)] static extern IntPtr GetModuleHandle(string name);
         static void Native()
         {
             var summary = new Summary("pdv", "manual");
@@ -93,18 +88,13 @@ namespace SmartPDV.Diagnostics
             using (var capture = new NativeCapture(summary))
             using (var timer = new Timer { Interval = 60 })
             {
-                int downstream = 0, index = 0; Exception failure = null;
-                Witness witness = delegate(int code, IntPtr message, IntPtr data) {
-                    if (code >= 0) downstream++;
-                    return CallNextHookEx(IntPtr.Zero, code, message, data);
-                };
-                IntPtr witnessHandle = IntPtr.Zero;
+                int delivered = 0, index = 0; Exception failure = null;
+                window.KeyPreview = true;
+                window.KeyDown += delegate { delivered++; };
                 ushort[] scans = { 0x0b, 0x0b, 0x08, 0x1c };
                 window.Shown += delegate {
                     try {
                         window.Capture = capture;
-                        witnessHandle = SetWindowsHookEx(13, witness, GetModuleHandle(null), 0);
-                        Check(witnessHandle != IntPtr.Zero, "Native CI downstream hook");
                         capture.Start(window.Handle); timer.Start();
                     } catch (Exception ex) { failure = ex; window.Close(); }
                 };
@@ -112,7 +102,7 @@ namespace SmartPDV.Diagnostics
                     try {
                         if (index < 8) {
                             var input = new Input { Type = 1, Data = new InputUnion { Key = new KeyboardInput { Scan = scans[index / 2], Flags = index % 2 == 0 ? 8u : 10u } } };
-                            SmartPDV.Legacy.ScanKeyboard.Send(scans[index / 2], index % 2 == 0);
+                            Check(SendInput(1, new[] { input }, Marshal.SizeOf(typeof(Input))) == 1, "Native CI injection accepted");
                             index++;
                         } else {
                             timer.Stop(); capture.Stop("manual"); window.Close();
@@ -125,18 +115,16 @@ namespace SmartPDV.Diagnostics
                     if (failure != null) throw failure;
                     var report = capture.Report(); Summary.Parse(Summary.Serializer().Serialize(report));
                     var streams = (Dictionary<string, object>)report["streams"];
-                    Check(streams.ContainsKey("ll_injected"), "Observe actual injected Windows input: failed=" + capture.ObservationFailed + " witness=" + downstream + " events=" + summary.Events + " summary=" + Summary.Serializer().Serialize(report));
+                    Check(streams.ContainsKey("ll_injected"), "Observe actual injected Windows input: failed=" + capture.ObservationFailed + " delivered=" + delivered + " events=" + summary.Events + " summary=" + Summary.Serializer().Serialize(report));
                     var stream = (Dictionary<string, object>)streams["ll_injected"];
                     Check((int)stream["digit"] == 3 && (int)stream["enter"] == 1 && (int)stream["up"] == 4, "Native observer category counts");
-                    Check(downstream >= 8, "Passive observer forwards input to downstream hook");
+                    Check(delivered >= 4, "Passive observer leaves keyboard input delivered to the target form");
                     Check(!capture.ObservationFailed, "No observer callback failure");
                     capture.Dispose(); Check(!capture.Active, "Explicit stop removes observer");
                     int previous = summary.Events;
                     Pump(150); Check(summary.Events == previous, "No collection after stop");
                 } finally {
                     timer.Stop(); capture.Dispose();
-                    if (witnessHandle != IntPtr.Zero) UnhookWindowsHookEx(witnessHandle);
-                    GC.KeepAlive(witness);
                 }
             }
         }
