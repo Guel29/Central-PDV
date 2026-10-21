@@ -112,7 +112,7 @@ namespace SmartPDV.Diagnostics
                     try {
                         if (index < 8) {
                             var input = new Input { Type = 1, Data = new InputUnion { Key = new KeyboardInput { Scan = scans[index / 2], Flags = index % 2 == 0 ? 8u : 10u } } };
-                            Check(SendInput(1, new[] { input }, Marshal.SizeOf(typeof(Input))) == 1, "Native CI injection accepted");
+                            SmartPDV.Legacy.ScanKeyboard.Send(scans[index / 2], index % 2 == 0);
                             index++;
                         } else {
                             timer.Stop(); capture.Stop("manual"); window.Close();
