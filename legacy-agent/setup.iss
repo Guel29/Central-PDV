@@ -21,9 +21,14 @@ Name: "{group}\Configurar PDV"; Filename: "{app}\SmartPDV-Agent-Win7.exe"; Param
 Name: "{group}\Iniciar Agent"; Filename: "{app}\SmartPDV-Agent-Win7.exe"
 Name: "{userstartup}\SmartPDV Agent Win7"; Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "--background"; Tasks: startup
 [Run]
-Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "setup"; Description: "Cadastrar este PDV usando o pareamento da Central"; Flags: postinstall skipifsilent waituntilterminated
+Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "setup"; Description: "Cadastrar este PDV usando o pareamento da Central"; Flags: postinstall skipifsilent waituntilterminated; Check: NeedsPairing
 Filename: "{app}\SmartPDV-Agent-Win7.exe"; Parameters: "--background"; Description: "Iniciar Agent"; Flags: postinstall skipifsilent nowait
 [Code]
+function NeedsPairing(): Boolean;
+begin
+  Result := not FileExists(ExpandConstant('{localappdata}\SmartPDV\agent\agent.json'));
+end;
+
 function InitializeSetup(): Boolean;
 var Release: Cardinal;
 begin
