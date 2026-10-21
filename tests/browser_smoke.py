@@ -46,6 +46,10 @@ async def main():
     await page.locator('#screen').press('Enter')
     for action in ('down','up'):
      assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':'Enter','code':'Enter','action':action}}
+    await page.locator('#screen').press('Escape')
+    for action in ('down','up'):
+     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':'Escape','code':'Escape','action':action}}
+    assert await page.locator('#remote').evaluate('(dialog) => dialog.open')
     await page.locator('#screen').press('Numpad1')
     for action in ('down','up'):
      event=(await asyncio.wait_for(commands.get(),5))['event']
@@ -65,61 +69,45 @@ async def main():
     await page.locator('#allow-mouse').uncheck()
     await page.locator('#save-peripherals').click()
     await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
-    assert central.config['peripherals']=={'keyboard':False,'mouse':False,'scanner':True}
+    assert central.config['peripherals']=={'keyboard':False,'mouse':False}
     await page.locator('.card').click()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
     await page.locator('#remote[open]').wait_for()
     await page.locator('#screen').press('1')  # Disabled keyboard must not reach the Agent.
-    code='0012345678901'
-    await page.locator('#barcode').fill(code)
-    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}  # Screen blur.
-    await page.locator('#barcode').press('Enter')
-    expected=[{'kind':'release'}]
-    expected.extend({'kind':'key','action':action,'key':key} for key in [*code,'Enter'] for action in ('down','up'))
-    expected.append({'kind':'release'})
-    for event in expected:
-     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':event}
-    await page.wait_for_function("() => document.querySelector('#barcode-status').textContent.includes('Confirme')")
-    assert await page.locator('#barcode').input_value()==''
-    # Real browser keyboard events retain keypad identity in the EAN field.
-    physical='0012'
-    # Headless Chromium has NumLock off; provide trusted CDP digit events
-    # with the physical keypad code, as produced with NumLock enabled.
-    cdp=await page.context.new_cdp_session(page)
-    for digit in physical:
-     packet=dict(code='Numpad'+digit,key=digit,windowsVirtualKeyCode=96+int(digit),isKeypad=True,location=3)
-     await cdp.send('Input.dispatchKeyEvent',dict(type='keyDown',text=digit,**packet))
-     await cdp.send('Input.dispatchKeyEvent',dict(type='keyUp',**packet))
-    await page.locator('#barcode').press('NumpadEnter')
+    assert await page.locator('#windows-key').is_disabled()
+    await page.locator('#close').focus()
     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
-    for key,physical_code in zip([*physical,'Enter'],[*['Numpad'+digit for digit in physical],'NumpadEnter']):
-     for action in ('down','up'):
-      assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':key,'action':action,'code':physical_code}}
-    assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'release'}}
-    await page.wait_for_function("() => document.querySelector('#barcode-status').textContent.includes('Confirme')")
-    await page.locator('#close').click()
-    await asyncio.wait_for(ended(),5)
-    await page.locator('#allow-scanner').uncheck()
-    await page.locator('#save-peripherals').click()
-    await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
-    await page.locator('.card').click()
-    assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
-    await page.locator('#remote[open]').wait_for()
-    assert await page.locator('#barcode').is_disabled()
     await page.locator('#close').click()
     await asyncio.wait_for(ended(),5)
     await page.reload()
     await page.locator('.card').wait_for()
     assert not await page.locator('#allow-keyboard').is_checked()
-    assert not await page.locator('#allow-scanner').is_checked()
     assert not await page.locator('#allow-mouse').is_checked()
+    assert await page.locator('#barcode-form, #barcode, #send-barcode, #allow-scanner').count()==0
     assert await page.locator('#diagnose').count()==0
+    await page.locator('#peripherals-panel > summary').click()
+    await page.locator('#allow-keyboard').check()
+    await page.locator('#save-peripherals').click()
+    await page.wait_for_function("() => document.querySelector('#peripherals-status').textContent.includes('salvas')")
+    await page.locator('.card').click()
+    assert (await asyncio.wait_for(commands.get(),5))=={'type':'session','active':True}
+    await page.locator('#remote[open]').wait_for()
+    assert await page.locator('#barcode').count()==0
+    for key in '0012':
+     await page.locator('#screen').press(key)
+     for action in ('down','up'):
+      assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':key,'code':'Digit'+key,'action':action}}
+    await page.locator('#screen').press('Enter')
+    for action in ('down','up'):
+     assert (await asyncio.wait_for(commands.get(),5))=={'type':'input','event':{'kind':'key','key':'Enter','code':'Enter','action':action}}
+    await page.locator('#close').click()
+    await asyncio.wait_for(ended(),5)
     await agent.close()
     await reader
     await page.locator('.card.offline').wait_for()
     assert errors==[],errors
     await browser.close()
-    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, EAN com zeros iniciais e teclas físicas do teclado numérico, botão Windows remoto, leitor desativado, encerramento e offline; no JS errors')
+    print('PASS Chromium: entrada direta, cards, alarmes, atendimento, teclado, autorizações persistentes, bloqueio de teclado, teclado direto com zeros iniciais, teclado numérico e botão Windows remoto, campo EAN removido, encerramento e offline; no JS errors')
   finally:
    await runner.cleanup()
 asyncio.run(main())

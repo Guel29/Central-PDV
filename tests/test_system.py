@@ -61,10 +61,15 @@ async def message_type(ws, expected):
     return await asyncio.wait_for(receive(), 5)
 
 
-def test_central_authorizes_input_and_preserves_barcode_order(tmp_path):
+def test_central_authorizes_direct_keyboard_and_mouse(tmp_path):
     async def scenario():
         pin=Fingerprint(bytes.fromhex(prepare(tmp_path)))
+        # An earlier configuration can still contain the removed scanner flag.
+        previous=load_json(tmp_path/'central.json')
+        previous['peripherals']={'keyboard':True,'scanner':False,'mouse':True}
+        atomic_json(tmp_path/'central.json',previous)
         central,runner,port=await start(tmp_path)
+        assert central.config['peripherals']=={'keyboard':True,'mouse':True}
         url=f'https://127.0.0.1:{port}'
         try:
             async with ClientSession() as client:
@@ -76,11 +81,10 @@ def test_central_authorizes_input_and_preserves_barcode_order(tmp_path):
                 await dashboard.send_json({'type':'start','number':1})
                 assert (await agent.receive_json())=={'type':'session','active':True}
                 await state(dashboard,lambda s:s['active'])
-                down={'kind':'key','key':'Control','action':'down'}
+                down={'kind':'key','key':'Control','action':'down','code':'ControlLeft'}
                 await dashboard.send_json({'type':'input','number':1,'event':down})
                 assert (await agent.receive_json())['event']==down
-                # Revoking permissions releases held keys/buttons on the PDV.
-                permissions={'keyboard':False,'scanner':True,'mouse':False}
+                permissions={'keyboard':False,'mouse':False}
                 await dashboard.send_json({'type':'peripherals','settings':permissions})
                 assert (await agent.receive_json())=={'type':'input','event':{'kind':'release'}}
                 await message_type(dashboard,'peripherals_saved')
@@ -88,42 +92,23 @@ def test_central_authorizes_input_and_preserves_barcode_order(tmp_path):
                 assert config['peripherals']==permissions
                 assert config['pdvs']==central.config['pdvs']
                 assert Central(tmp_path).config['peripherals']==permissions
+                # Removed barcode commands cannot bypass the keyboard permission.
+                await dashboard.send_json({'type':'barcode','number':1,'code':'0012345678901'})
+                await message_type(dashboard,'error')
                 for event in (down,{'kind':'mouse','action':'down','x':.5,'y':.5,'button':0},{'kind':'wheel','delta':120}):
                     await dashboard.send_json({'type':'input','number':1,'event':event})
                 await dashboard.send_json({'type':'input','number':1,'event':{'kind':'release'}})
                 assert (await agent.receive_json())=={'type':'input','event':{'kind':'release'}}
-                # Dedicated scanner path is independent of the keyboard flag.
-                for invalid in ('',123,'1\n2','１23','0'*33):
-                    await dashboard.send_json({'type':'barcode','number':1,'code':invalid})
-                    await message_type(dashboard,'error')
-                code='0012345678901'
-                await dashboard.send_json({'type':'barcode','number':1,'code':code})
-                events=[{'kind':'release'}]
-                events.extend({'kind':'key','action':action,'key':key} for key in [*code,'Enter'] for action in ('down','up'))
-                events.append({'kind':'release'})
-                for event in events:
-                    assert (await agent.receive_json())=={'type':'input','event':event}
-                await message_type(dashboard,'barcode_sent')
-                physical=[f'Numpad{digit}' for digit in code]
-                for invalid in ({'codes':physical[:-1]},{'codes':['Digit9']*len(code)},
-                                {'codes':[None]*len(code)},{'enter_code':[]},{'codes':'not an array'}):
-                    await dashboard.send_json({'type':'barcode','number':1,'code':code,**invalid})
-                    await message_type(dashboard,'error')
-                await dashboard.send_json({'type':'barcode','number':1,'code':code,'codes':physical,'enter_code':'NumpadEnter'})
-                assert (await agent.receive_json())['event']=={'kind':'release'}
-                for key,physical_code in zip([*code,'Enter'],[*physical,'NumpadEnter']):
-                    for action in ('down','up'):
-                        assert (await agent.receive_json())['event']=={'kind':'key','key':key,'action':action,'code':physical_code}
-                assert (await agent.receive_json())['event']=={'kind':'release'}
-                await message_type(dashboard,'barcode_sent')
-                permissions={'keyboard':True,'scanner':False,'mouse':False}
+                permissions={'keyboard':True,'mouse':False}
                 await dashboard.send_json({'type':'peripherals','settings':permissions})
                 await message_type(dashboard,'peripherals_saved')
-                await dashboard.send_json({'type':'barcode','number':1,'code':code})
-                assert 'desativado' in (await message_type(dashboard,'error'))['message']
-                await dashboard.send_json({'type':'input','number':1,'event':down})
-                assert (await agent.receive_json())['event']==down
-                # No authorization for generic USB transport is advertised or accepted.
+                # Scanner-style keystrokes go through the ordinary remote keyboard.
+                code='0012345678901'
+                for key,physical in zip([*code,'Enter'],[*[f'Numpad{digit}' for digit in code],'NumpadEnter']):
+                    for action in ('down','up'):
+                        event={'kind':'key','action':action,'key':key,'code':physical}
+                        await dashboard.send_json({'type':'input','number':1,'event':event})
+                        assert (await agent.receive_json())=={'type':'input','event':event}
                 await dashboard.send_json([])
                 await message_type(dashboard,'error')
                 await dashboard.send_json({'type':'peripherals','settings':{**permissions,'usb_all':True}})
@@ -153,9 +138,9 @@ def test_authorization_save_failure_keeps_previous_settings(tmp_path,monkeypatch
         try:
             async with ClientSession() as client:
                 dashboard=await client.ws_connect(url+'/dashboard',ssl=pin,headers=await local_session(client,url,pin))
-                await dashboard.send_json({'type':'peripherals','settings':{'keyboard':False,'scanner':False,'mouse':False}})
+                await dashboard.send_json({'type':'peripherals','settings':{'keyboard':False,'mouse':False}})
                 assert 'anteriores' in (await message_type(dashboard,'error'))['message']
-                assert central.config['peripherals']=={'keyboard':True,'scanner':True,'mouse':True}
+                assert central.config['peripherals']=={'keyboard':True,'mouse':True}
                 assert 'peripherals' not in load_json(tmp_path/'central.json')
                 await dashboard.close()
         finally:
@@ -234,7 +219,7 @@ def test_permissions_and_session_ownership(tmp_path):
                     pass
                 assert central.state[1]['owner']==expected_owner
                 await observer.send_json({'type':'barcode','number':1,'code':'0012345678901'})
-                await state(observer,lambda s:s['active'])
+                await message_type(observer,'error')
                 await owner.send_json({'type':'input','number':1,'event':{'kind':'release'}})
                 assert (await agent.receive_json())=={'type':'input','event':{'kind':'release'}}
                 await owner.close()

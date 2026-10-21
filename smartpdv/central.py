@@ -26,7 +26,7 @@ class Central:
         saved = self.config.get('peripherals', {})
         if not isinstance(saved,dict):
             saved = {}
-        self.config['peripherals'] = {key:saved.get(key, True) if type(saved.get(key, True)) is bool else True for key in ('keyboard','scanner','mouse')}
+        self.config['peripherals'] = {key:saved.get(key, True) if type(saved.get(key, True)) is bool else True for key in ('keyboard','mouse')}
         self.agents = {}
         self.log_lock = threading.Lock()
         self.viewers = {}
@@ -169,6 +169,8 @@ class Central:
                         await self.publish()
                         await ws.send_json({'type':'peripherals_saved'})
                         continue
+                    if data.get('type') not in {'start','end','input'}:
+                        raise ValueError('Comando inválido')
                     s = self.state[int(data['number'])]
                     async with self.locks[s['number']]:
                         agent = self.agents.get(s['number'])
@@ -183,30 +185,6 @@ class Central:
                             await ws.send_json({'type':'error','message':'PDV já está em atendimento'})
                         elif data['type'] == 'end' and s['owner'] == id(ws):
                             await self.end(s, data.get('result', 'Concluído'))
-                        elif data['type'] == 'barcode' and s['active'] and s['owner'] == id(ws):
-                            code = data.get('code')
-                            if not self.config['peripherals']['scanner']:
-                                await ws.send_json({'type':'error','message':'Leitor EAN desativado na SmartCentral'})
-                                continue
-                            if not isinstance(code,str) or not 1 <= len(code) <= 32 or any(ch not in '0123456789' for ch in code):
-                                raise ValueError('Código inválido')
-                            codes = data.get('codes')
-                            enter = data.get('enter_code','Enter')
-                            if (codes is not None and (not isinstance(codes,list) or len(codes) != len(code)
-                                    or any(not isinstance(physical,str) or physical not in (f'Digit{digit}',f'Numpad{digit}') for digit,physical in zip(code,codes)))):
-                                raise ValueError('Teclas inválidas')
-                            if enter not in ('Enter','NumpadEnter'):
-                                raise ValueError('Enter inválido')
-                            await agent.send_json({'type':'input','event':{'kind':'release'}})
-                            for index,key in enumerate([*code,'Enter']):
-                                for action in ('down','up'):
-                                    event = {'kind':'key','action':action,'key':key}
-                                    if codes is not None:
-                                        event['code'] = codes[index] if index < len(code) else enter
-                                    await agent.send_json({'type':'input','event':event})
-                            await agent.send_json({'type':'input','event':{'kind':'release'}})
-                            await ws.send_json({'type':'barcode_sent','number':s['number']})
-                            continue
                         elif data['type'] == 'input' and s['owner'] == id(ws):
                             event = data['event']
                             if self.valid_input(event) and self.input_allowed(event):
@@ -226,7 +204,7 @@ class Central:
 
     @staticmethod
     def valid_peripherals(settings):
-        if not isinstance(settings,dict) or set(settings) != {'keyboard','scanner','mouse'}:
+        if not isinstance(settings,dict) or set(settings) != {'keyboard','mouse'}:
             return None
         return dict(settings) if all(type(value) is bool for value in settings.values()) else None
 

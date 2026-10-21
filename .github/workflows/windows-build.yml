@@ -63,7 +63,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'smartpdv-release.md'
           @'
           Dois instaladores independentes para testes em Windows 10/11 x64.
-          Atualizacao 1.0.6: preserva a identificacao fisica das teclas, distinguindo numeros da fileira superior e do teclado numerico, Enter numerico e modificadores esquerdo/direito; inclui botao Windows no PDV. Autoriza teclado, mouse e leitor EAN na Central, mantendo configuracao e pareamento. Leitura no VRPDV/LS2208 ainda precisa de validacao no caixa; nao implementa redirecionamento USB generico.
+          Atualizacao 1.0.7: remove o campo EAN, o envio separado de codigos e sua autorizacao exclusiva. Leitor em modo teclado utiliza o controle direto da tela remota, com autorizacoes de teclado e mouse na Central. Preserva cadastro, pareamento, teclas fisicas e botao Windows no PDV; encaminha Escape quando a imagem remota tem foco. A falha de leitura no VRPDV continua sem correcao comprovada.
           Central: dashboard local HTTPS. Agent: captura/controle Windows reais, sem console, inicialização após login.
           Cadastre e pareie somente computadores autorizados da LAN. Configure o certificado local na Central.
           Binários sem assinatura Authenticode. Esta versão é para testes; captura e entrada física precisam de validação nos computadores de destino.
