@@ -7,6 +7,10 @@ Dois aplicativos independentes na LAN, sem banco de dados nem serviço externo:
 
 O computador PDV é cadastrado, mesmo sem contas de usuários na Central. O número do caixa, UUID e credencial individual identificam qual PDV acionou F11. A comunicação usa WebSocket TLS direto com pin SHA-256 do certificado; a remoção do login não removeu o pareamento dos Agents.
 
+## JSON de pareamento apagado
+
+Na Central 1.0.11, feche a Central e use **Menu Iniciar → Smart PDV Central → Gerar novo pareamento de PDV**. Informe o numero existente. Isso substitui somente a credencial desse caixa e exige reconfigurar seu Agent. Veja o [procedimento completo](docs/recuperar-pareamento.md). Não apague `central.json` nem recadastre os outros PDVs.
+
 ## Instalação e primeiro uso
 
 Os builds Windows para testes são publicados em **Releases** do repositório após build e testes bem-sucedidos no GitHub Actions. Use os pacotes compatíveis indicados abaixo e confira `SHA256SUMS.txt` da respectiva publicação. Os instaladores modernos incluem Python e dependências; os computadores de destino não precisam instalar Python ou acessar a internet. O Agent Win7 exige .NET 4.8. Binários ainda sem assinatura Authenticode.

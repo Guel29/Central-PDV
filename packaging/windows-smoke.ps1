@@ -15,6 +15,13 @@ foreach ($role in @('Central','Agent')) {
     $subsystem = [BitConverter]::ToUInt16($bytes, $pe + 24 + 68)
     if ($subsystem -ne 2) { throw "$role nao foi compilado como aplicativo Windows sem console" }
 }
+$shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Smart PDV Central\Gerar novo pareamento de PDV.lnk'
+if (!(Test-Path $shortcut)) { throw 'Atalho para gerar novo pareamento ausente' }
+$shell = New-Object -ComObject WScript.Shell
+$entry = $shell.CreateShortcut($shortcut)
+if ($entry.Arguments -ne 'reissue-pairing' -or $entry.TargetPath -ne (Join-Path $smoke 'Central\SmartPDV-Central.exe')) {
+    throw 'Atalho de novo pareamento aponta para comando incorreto'
+}
 $env:SMARTPDV_SMOKE_DATA = Join-Path $smoke 'central-data'
 & .\.venv\Scripts\python.exe -c 'import os; from pathlib import Path; from smartpdv.dev import initialize; initialize(Path(os.environ["SMARTPDV_SMOKE_DATA"]),port=18443)'
 if ($LASTEXITCODE -ne 0) { throw 'Preparacao dos dados de teste falhou' }

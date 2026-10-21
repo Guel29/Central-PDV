@@ -4,7 +4,7 @@
 [Setup]
 AppId=SmartPDV-{#AppRole}
 AppName=Smart PDV {#AppRole}
-AppVersion=1.0.10
+AppVersion=1.0.11
 MinVersion=10.0
 DefaultDirName={localappdata}\Programs\SmartPDV-{#AppRole}
 DefaultGroupName=Smart PDV {#AppRole}
@@ -30,6 +30,7 @@ Name: "{group}\Configuração inicial"; Filename: "{app}\SmartPDV-{#AppRole}.exe
 #if AppRole == "Central"
 Name: "{group}\Confiar no certificado local"; Filename: "{app}\SmartPDV-Central.exe"; Parameters: "trust-certificate"
 Name: "{group}\Cadastrar PDV"; Filename: "{app}\SmartPDV-Central.exe"; Parameters: "add-pdv"
+Name: "{group}\Gerar novo pareamento de PDV"; Filename: "{app}\SmartPDV-Central.exe"; Parameters: "reissue-pairing"
 #endif
 #if AppRole == "Agent"
 Name: "{userstartup}\SmartPDV Agent"; Filename: "{app}\SmartPDV-Agent.exe"; Parameters: "--background"; Tasks: autostart

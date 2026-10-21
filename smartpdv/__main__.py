@@ -8,6 +8,7 @@ from pathlib import Path
 import secrets
 import sys
 import uuid
+import socket
 from aiohttp import web
 from .storage import atomic_json, load_json, protect, secure_directory
 from .security import create_certificate, tls_context, token_hash
@@ -55,6 +56,60 @@ def add_pdv(directory):
     print('Pareamento criado em', export, '— reinicie a Central após cadastrar.')
 
 
+def reissue_pairing(directory):
+    config = load_json(directory / 'central.json')
+    number = int(ask('Número do PDV para gerar novo pareamento (substitui sua credencial; será necessário configurar novamente esse PDV)'))
+    pdv = next((p for p in config['pdvs'] if p['number'] == number), None)
+    if number <= 0 or pdv is None:
+        raise SystemExit('PDV não cadastrado. Use Cadastrar PDV para um novo caixa.')
+    # Hold the listening port until the two writes finish. Never rotate a key
+    # while a running Central still accepts the previous in-memory credential.
+    family = socket.AF_INET6 if ':' in config['host'] else socket.AF_INET
+    address = (config['host'], config['port'])
+    with socket.socket(family, socket.SOCK_STREAM) as guard:
+        if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            guard.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            guard.bind(address)
+        except OSError:
+            raise SystemExit('Feche a Central antes de gerar novo pareamento. Se já fechou, verifique se a porta configurada está ocupada.') from None
+        # Re-read after acquiring the port, preserving current registrations.
+        config = load_json(directory / 'central.json')
+        if (config['host'], config['port']) != address:
+            raise SystemExit('A configuração de rede mudou. Tente gerar o pareamento novamente.')
+        pdv = next((p for p in config['pdvs'] if p['number'] == number), None)
+        if pdv is None:
+            raise SystemExit('PDV não cadastrado.')
+        token = secrets.token_urlsafe(32)
+        pairing = {'number':number, 'computer_id':pdv['computer_id'], 'central':config['hostname'],
+                   'port':config['port'], 'fingerprint':config['fingerprint'], 'token':token, 'f11':True}
+        export = directory / 'pairing' / f'pdv-{number}.json'
+        # Export first: a failed config write must not invalidate the old Agent.
+        atomic_json(export, pairing)
+        pdv['token_hash'] = token_hash(token)
+        try:
+            atomic_json(directory / 'central.json', config)
+        except Exception:
+            export.unlink(missing_ok=True)  # Do not leave an unactivated pairing.
+            raise
+    message = (f'Novo pareamento do PDV {number} salvo em:\n{export}\n\n'
+               'A credencial anterior desse PDV foi substituída. Preserve uma cópia do agent.json antigo, '
+               'remova-o da pasta ativa com o Agent fechado e use Configurar PDV para importar este arquivo. '
+               'Depois inicie a Central e o Agent. Os outros PDVs mantêm seus cadastros.')
+    if getattr(sys, 'frozen', False):
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            messagebox.showinfo('Novo pareamento de PDV', message, parent=root)
+        finally:
+            root.destroy()
+    else:
+        print(message)
+    return export
+
+
 def trust_certificate(directory):
     if os.name != 'nt':
         raise SystemExit('A instalação de confiança deste comando exige Windows')
@@ -97,7 +152,7 @@ def setup_agent(directory):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('role', choices=['central','agent'])
-    parser.add_argument('action', nargs='?', default='run', choices=['run','setup','add-pdv','trust-certificate','check-config'])
+    parser.add_argument('action', nargs='?', default='run', choices=['run','setup','add-pdv','reissue-pairing','trust-certificate','check-config'])
     parser.add_argument('--data', type=Path)
     args = parser.parse_args()
     base = Path(os.environ.get('LOCALAPPDATA', str(Path.home() / '.local' / 'share')))
@@ -120,6 +175,11 @@ def main():
         if args.role != 'central':
             parser.error('add-pdv é exclusivo da Central')
         return add_pdv(directory)
+    if args.action == 'reissue-pairing':
+        if args.role != 'central':
+            parser.error('reissue-pairing é exclusivo da Central')
+        reissue_pairing(directory)
+        return
     if args.role == 'central':
         from .central import Central
         central = Central(directory)
