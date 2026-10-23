@@ -20,12 +20,12 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: System.Reflection.AssemblyVersion("0.1.7.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.1.7.0")]
+[assembly: System.Reflection.AssemblyVersion("0.2.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.2.0.0")]
 
 namespace SmartPDV.Legacy
 {
-    static class BuildInfo { public const string Version = "0.1.7"; }
+    static class BuildInfo { public const string Version = "0.2.0"; }
 
     static class JsonFiles
     {
@@ -123,7 +123,7 @@ namespace SmartPDV.Legacy
         readonly object writeLock = new object();
         volatile bool closed;
         static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
-        public LocalWebSocket(Configuration c)
+        public LocalWebSocket(Configuration c, string usbLease = null)
         {
             IPAddress ip = Configuration.LocalAddress(c.Host);
             tcp = new TcpClient(ip.AddressFamily);
@@ -153,9 +153,10 @@ namespace SmartPDV.Legacy
                 byte[] nonce = new byte[16]; using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(nonce);
                 string key = Convert.ToBase64String(nonce);
                 string host = c.Host.IndexOf(':') >= 0 ? "[" + c.Host + "]" : c.Host;
-                string headers = "GET /agent HTTP/1.1\r\nHost: " + host + ":" + c.Port +
+                string headers = "GET " + (usbLease == null ? "/agent" : "/usb-stream") + " HTTP/1.1\r\nHost: " + host + ":" + c.Port +
                     "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + key +
                     "\r\nAuthorization: Bearer " + c.Token + "\r\nX-Computer-ID: " + c.ComputerId +
+                    (usbLease == null ? "\r\nX-SmartPDV-USB: " + (UsbReader.Available ? "usbip-win7-v1" : "") : "\r\nX-USB-Lease: " + usbLease) +
                     "\r\nX-SmartPDV-Version: " + BuildInfo.Version + "\r\nX-SmartPDV-Keyboard: scan-code-v1\r\nX-SmartPDV-Timed-Keys: numeric-v1\r\n\r\n";
                 byte[] request = Encoding.ASCII.GetBytes(headers); stream.Write(request, 0, request.Length);
                 var response = new StringBuilder();
@@ -193,7 +194,9 @@ namespace SmartPDV.Legacy
             }
             return data;
         }
-        public string Receive()
+        public string Receive() { return Utf8.GetString(ReceivePayload(1, 8192)); }
+        public byte[] ReceiveBinary() { return ReceivePayload(2, 65536); }
+        byte[] ReceivePayload(int expectedOpcode, int maximum)
         {
             using (var fragments = new MemoryStream())
             {
@@ -205,21 +208,22 @@ namespace SmartPDV.Legacy
                     if ((head[0] & 112) != 0 || (head[1] & 128) != 0) throw new InvalidDataException("Frame invalido.");
                     ulong length = (ulong)(head[1] & 127);
                     if (length == 126) { byte[] b = Exact(2); length = (ulong)(b[0] * 256 + b[1]); }
-                    else if (length == 127) { length = 0; foreach (byte b in Exact(8)) { if (length > 8192) throw new InvalidDataException(); length = length * 256 + b; } }
-                    if (length > 8192 || opcode >= 8 && (!final || length > 125)) throw new InvalidDataException("Mensagem grande demais.");
+                    else if (length == 127) { length = 0; foreach (byte b in Exact(8)) { if (length > (ulong)maximum) throw new InvalidDataException(); length = length * 256 + b; } }
+                    if (length > (ulong)maximum || opcode >= 8 && (!final || length > 125)) throw new InvalidDataException("Mensagem grande demais.");
                     byte[] payload = Exact((int)length);
                     if (opcode == 8) { Dispose(); throw new EndOfStreamException(); }
                     if (opcode == 9) { Frame(10, payload); continue; }
                     if (opcode == 10) continue;
-                    if (opcode == 1 && !fragmented) fragmented = true;
+                    if (opcode == expectedOpcode && !fragmented) fragmented = true;
                     else if (opcode != 0 || !fragmented) throw new InvalidDataException("Tipo de mensagem invalido.");
                     fragments.Write(payload, 0, payload.Length);
-                    if (fragments.Length > 8192) throw new InvalidDataException("Mensagem grande demais.");
-                    if (final) return Utf8.GetString(fragments.ToArray());
+                    if (fragments.Length > maximum) throw new InvalidDataException("Mensagem grande demais.");
+                    if (final) return fragments.ToArray();
                 }
             }
             throw new EndOfStreamException();
         }
+        public void SendBinary(byte[] value) { Frame(2, value); }
         public void Send(object value) { Frame(1, Utf8.GetBytes(JsonFiles.Serializer().Serialize(value))); }
         void Frame(int opcode, byte[] payload)
         {
@@ -398,6 +402,7 @@ namespace SmartPDV.Legacy
         }
         readonly Configuration config;
         readonly Desktop desktop = new Desktop();
+        readonly UsbReader usb = new UsbReader();
         readonly HotkeyWindow window;
         readonly ManualResetEvent stopping = new ManualResetEvent(false);
         volatile bool active, pending;
@@ -430,7 +435,15 @@ namespace SmartPDV.Legacy
                                     if (type == "session")
                                     {
                                         lastAccepted = null; lastReport = DateTime.MinValue;
-                                        active = (bool)message["active"]; desktop.Release(); if (active) pending = false;
+                                        active = (bool)message["active"]; if (!active) usb.Stop(null); desktop.Release(); if (active) pending = false;
+                                    }
+                                    else if (type == "usb_connect" && active)
+                                    {
+                                        usb.Start(message,config,connection);
+                                    }
+                                    else if (type == "usb_disconnect")
+                                    {
+                                        usb.Stop((string)message["lease"]);
                                     }
                                     else if (type == "input" && active)
                                     {
@@ -470,13 +483,13 @@ namespace SmartPDV.Legacy
                     }
                 }
                 catch (Exception) { /* Nao registrar tokens, imagens, teclas nem payloads. */ }
-                finally { active = false; desktop.Release(); }
+                finally { active = false; usb.Stop(null); desktop.Release(); }
                 if (stopping.WaitOne(delay)) break; delay = Math.Min(delay * 2, 15000);
             }
         }
         protected override void Dispose(bool disposing)
         {
-            stopping.Set(); window.Dispose(); desktop.Release(); base.Dispose(disposing);
+            stopping.Set(); usb.Stop(null); window.Dispose(); desktop.Release(); base.Dispose(disposing);
         }
     }
 

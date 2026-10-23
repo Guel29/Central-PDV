@@ -84,7 +84,7 @@ function showRemote(number) {
   $('agent-version').textContent=agentVersion(p);
   if(p.thumbnail) $('screen').src='data:image/jpeg;base64,'+p.thumbnail;
   if(!$('remote').open) $('remote').showModal();
-  $('screen').focus();
+  $('screen').focus();renderUSB();
 }
 function endRemote() {
   input({kind:'release'});
@@ -99,6 +99,7 @@ function connect() {
   socket.onmessage=e=>{
     const data=JSON.parse(e.data);
     if(data.type==='state'){pdvs=data.pdvs;alarm=data.alarm;
+      renderUSB(data.usb);
       peripherals=data.peripherals || {keyboard:true,mouse:true};
       if(!peripherals.keyboard)keyboard.cancel();
       updateControls();
@@ -122,6 +123,7 @@ function connect() {
   };
   socket.onclose=async()=>{
     $('connection').textContent='Central desconectada · Reconectando';
+    renderUSB({...usbState,status:'desconectado',number:null,error:'Sem conexão com a Central'});
     clearInterval(alarmTimer);keyboard.cancel();lastPending=false;selected=null;updateControls();$('remote').close();
     for(const {card,info} of cards.values()){card.className='card offline';card.disabled=true;info.textContent='Conexão com a Central perdida';}
     if(!stopped){
@@ -140,7 +142,7 @@ $('windows-key').onpointerdown=e=>e.preventDefault();
 $('windows-key').onclick=()=>{
   input({kind:'release'});
   for(const action of ['down','up'])input({kind:'key',key:'Meta',code:'MetaLeft',action});
-  $('screen').focus();
+  $('screen').focus();renderUSB();
 };
 $('close').onclick=endRemote;$('remote').addEventListener('cancel',e=>{e.preventDefault();endRemote();});
 $('switch').onchange=e=>openRemote(Number(e.target.value));
@@ -176,3 +178,35 @@ async function restoreSession(){
   }catch(e){$('connection').textContent=e.message;}
 }
 restoreSession();
+
+// USB has its own data tunnel; these controls never send keyboard events.
+let usbState={status:'desconectado',devices:[],selection:null,number:null};
+function renderUSB(value) {
+  if(value)usbState=value;
+  const picker=$('usb-device'), previous=picker.value;
+  picker.replaceChildren(...usbState.devices.map(d=>{
+    const option=new Option(`${d.description || 'USB'} · ${d.busid} · ${d.instance}${d.shared?' · preparado':''}`,d.instance);
+    option.disabled=!d.candidate;
+    return option;
+  }));
+  const desired=usbState.selection?.instance || previous;
+  if([...picker.options].some(o=>o.value===desired))picker.value=desired;
+  const text=`USB: ${usbState.status}${usbState.number?' · PDV '+usbState.number:''}${usbState.error?' · '+usbState.error:''}`;
+  $('usb-status').textContent=text;$('usb-remote-status').textContent=text;
+  const target=pdvs.find(p=>p.number===selected);
+  $('usb-connect').disabled=!target?.usb_capable || !usbState.selection || usbState.status==='conectando';
+  $('usb-disconnect').disabled=!usbState.number;
+}
+$('usb-refresh').onclick=()=>send({type:'usb',action:'refresh'});
+$('usb-select').onclick=()=>{
+  const device=usbState.devices.find(d=>d.instance===$('usb-device').value);
+  if(!device?.candidate)return;
+  if(confirm(`Confirme na etiqueta física que este é o LS2208:\n${device.instance}\nFabricante sozinho não comprova o modelo. Selecionar este leitor?`))
+    send({type:'usb',action:'select',instance:device.instance,confirm_ls2208:true});
+};
+$('usb-connect').onclick=()=>{
+  keyboard.cancel();
+  if(selected!==null && confirm('O leitor poderá ficar indisponível na Central durante o redirecionamento. Conectar ao PDV '+selected+'?'))
+    send({type:'usb',action:'connect',number:selected});
+};
+$('usb-disconnect').onclick=()=>send({type:'usb',action:'disconnect'});

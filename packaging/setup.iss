@@ -4,7 +4,7 @@
 [Setup]
 AppId=SmartPDV-{#AppRole}
 AppName=Smart PDV {#AppRole}
-AppVersion=1.0.11
+AppVersion=1.1.0
 MinVersion=10.0
 DefaultDirName={localappdata}\Programs\SmartPDV-{#AppRole}
 DefaultGroupName=Smart PDV {#AppRole}

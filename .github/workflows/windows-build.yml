@@ -65,7 +65,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'smartpdv-release.md'
           @'
           Dois instaladores independentes para testes em Windows 10/11 x64.
-          Atualizacao 1.0.11: adiciona Gerar novo pareamento de PDV ao Menu Iniciar. Com a Central fechada, permite emitir novo JSON para um numero ja cadastrado, substituindo somente sua credencial. Exige reconfigurar o Agent escolhido; preserva os demais PDVs e o controle remoto/cadencia existentes. Compativel com Agent Win7 0.1.7 sem atualizacao.
+          Central 1.1.0: integra selecao e concessao exclusiva de leitor USB ao PDV em atendimento, com tunel TLS autenticado separado da entrada remota. Requer componentes USB externos, cliente assinado Windows 7 e validacao fisica LS2208/VR; nao inclui driver USB. Consulte docs/usb-reader-redirection.md.
           Central: dashboard local HTTPS. Agent: captura/controle Windows reais, sem console, inicialização após login.
           Cadastre e pareie somente computadores autorizados da LAN. Configure o certificado local na Central.
           Binários sem assinatura Authenticode. Esta versão é para testes; captura e entrada física precisam de validação nos computadores de destino.

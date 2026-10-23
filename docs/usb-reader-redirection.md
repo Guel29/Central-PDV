@@ -1,83 +1,202 @@
-# Redirecionamento USB do leitor da Central
+# Ponte USB do Smart Controle — Central 1.1.0 / Agent Win7 0.2.0
 
-Status: levantamento técnico. **Ainda não há redirecionamento USB implementado ou driver selecionado no Smart Control.** O usuário interrompeu a investigação por relatórios e pediu disponibilizar diretamente o leitor USB da Central no PDV. A existência desta especificação não habilita USB no aplicativo.
+## Estado desta implementação
 
-## Operação pretendida
+Há código integrado de seleção, concessão exclusiva e transporte **binário USB/IP
+real por TLS**, mais componente receptor no Agent Windows 7. O transporte foi
+exercitado por conexões TCP/WebSocket reais e por um cliente C# compilado.
+**Ainda não há uma solução pronta para instalar nos caixas:** falta um pacote de
+driver cliente Windows 7 com assinatura de produção aceita, instalação/validação
+Windows e o LS2208/VR físicos. Nenhum driver foi carregado nesta tarefa. Não afirmar
+que o cartão fiscal funcionará com esta implementação.
 
-Leitor LS2208 conectado à Central → transporte USB pela LAN → driver cliente no PDV → leitura e validação normais da VR.
+A causa da diferença entre leitura no Bloco de Notas e autorização VR continua
+sem confirmação. Nenhum teste de digitação/Bloco de Notas precisa ser repetido.
+O caminho USB não usa `SendInput`, colagem, texto ou eventos de teclado. O acesso
+remoto existente continua separado; não é fallback silencioso do USB.
 
-O computador onde está fisicamente conectado o leitor é o servidor USB; o PDV recebe o dispositivo pelo cliente USB. Capturar Raw Input na Central e enviar `SendInput` ao PDV continua sendo entrada de teclado sintetizada e não implementa esse caminho. A identificação do mecanismo exato da tela fiscal da VR continua desconhecida; redirecionamento deve ser validado nessa mesma tela antes de ser considerado compatível.
+## Arquitetura e dependências
 
-## Resultado do levantamento em fontes dos projetos
-
-| Opção | Requisitos encontrados | Consequência para este projeto |
+| Componente | Local/requisito | Licença e instalação |
 |---|---|---|
-| [usbipd-win](https://github.com/dorssel/usbipd-win) | Host Windows 10/Server 2019 versão 1809 ou superior; documentação de conexão WSL e clientes USB/IP | Não fornece, sozinho, o cliente Windows 7 de que precisamos |
-| [usbip-win2](https://github.com/vadimgrn/usbip-win2) | Windows 10 x64 versão 1903 ou superior / Windows 11 ARM64; drivers certificados/assinados nas distribuições apropriadas | A versão atual não atende ao PDV Windows 7 |
-| [usbip-win](https://github.com/cezanne/usbip-win) | README informa que o último suporte Windows 7/8 é da versão v0.1.0; instruções usam certificados de teste e modo de assinatura de teste | Não adotar essas instruções de desenvolvimento como instalação de produção do caixa |
-| Componente USB comercial integrado | Fornecedor, licença, SDK/CLI, versões Windows e assinaturas ainda precisam de confirmação | Alternativa em avaliação; nenhum fornecedor ou licença foi escolhido |
+| Central 1.1.0 (`smartpdv/usb.py`, painel existente) | Central Windows 10/11, conforme projeto atual | Código integrado ao repositório; build existente `packaging/build.ps1`. |
+| Serviço/driver `usbipd-win` | Central Windows 10/Server 2019 1809+, TCP bruto 3240 **somente local** | GPL-3.0-only. Obter MSI assinado nas [releases oficiais](https://github.com/dorssel/usbipd-win/releases). Não incluído nem presumido instalado. O instalador pode criar regra LAN ampla: o preparo abaixo adiciona bloqueio bruto prevalente. |
+| Agent Win7 0.2.0 / `UsbReader.cs` | PDV Windows 7 SP1 x86/x64, .NET Framework 4.8 | Código C# integrado. Executa em segundo plano na sessão do operador, com inicialização no login pelo instalador existente. Não é um novo serviço Windows antes do login. |
+| Controlador virtual e `usbip.exe`, `cezanne/usbip-win v0.1.0` | PDV; pacote de driver compatível com arquitetura e assinatura válida | Fonte aberta gratuita, revisão `44063583a5c3e20ec459bddadc9aae37f73bda10`. `LICENSE` GPLv3, com cabeçalhos individuais GPLv2-ou-posterior. Preservar avisos/licenças e obrigações de fonte em redistribuição. **Assinatura de produção não resolvida.** |
 
-Fontes README consultadas em 21/10/2026. A disponibilidade de código ou de uma assinatura não comprova suporte ao LS2208/VR. Também será necessário confirmar autenticação e criptografia do transporte escolhido; não presumir que USB/IP básico as forneça.
+O Windows da Central é moderno, conforme o projeto existente; o requisito Windows 7
+é atendido pelo código receptor em .NET, não pelo Python 3.12. Não executar o Agent
+Python nem o cliente `usbip-win2` moderno no caixa Windows 7.
 
-A última resposta do usuário exige uma solução **totalmente gratuita**, substituindo a resposta anterior que aceitava componente licenciado. Não foi feita compra, download/instalação de driver nem desativação de proteções Windows. Não usar prazo de avaliação como comprovação de gratuidade permanente ou de licença para uso no supermercado.
+O [README oficial v0.1.0](https://github.com/cezanne/usbip-win/blob/v0.1.0/README.md)
+usa certificados de teste e declara não estar pronto para produção. Essa instalação
+**não foi adotada**. Não há comandos para TESTSIGNING, desativação de integridade ou
+instalação do PFX de teste nos helpers. Uso próprio não elimina a assinatura do
+kernel. [Preparação/build/verificação do driver](../tools/usb-win7/README.md).
+Não é um driver próprio novo; reutiliza-se uma dependência existente e separada.
 
-A limitação pendente é o Windows do PDV: as alternativas gratuitas atuais confirmadas acima atendem Windows 10/11, enquanto o ramo antigo para Windows 7 documenta assinatura de teste. Ainda não foi confirmado um cliente gratuito com driver assinado para Windows 7. O usuário confirmou que **precisa manter o Windows 7**. Portanto, não oferecer a implementação limitada ao Windows 10/11 como cumprimento desse pedido. Windows 7 e gratuidade são restrições obrigatórias. A integração fica bloqueada pela falta de um driver gratuito assinado e compatível confirmado; não há recurso USB funcional entregue nesta etapa. A página oficial de termos do servidor VirtualHere foi tentada e recusada pela política de rede deste ambiente (HTTP 403); sua gratuidade e compatibilidade não foram confirmadas, e ele não foi selecionado.
+## Funcionamento e proteção
 
-Mesmo em Windows 10/11, será necessário implementar o transporte autenticado/criptografado e a concessão do leitor por atendimento. Encontrar um driver gratuito não significa que o recurso já esteja pronto no Smart Control.
+A Central aceita USB apenas pelo dashboard local e pelo dono de um atendimento
+ativo. O PDV precisa estar cadastrado, autenticado pela credencial individual já
+pareada e anunciar capacidade USB depois da instalação aprovada. Cada conexão usa
+um token de concessão efêmero, de uso único, limitado ao PDV e à identidade exata
+selecionada. A conexão USB abre outro WebSocket TLS na **mesma porta da Central**,
+com pin SHA-256 no cliente gerenciado compatível com Windows 7.
 
-## Integração exigida
+Somente a mensagem de importação do BUSID concedido é aceita. Não há proxy TCP de
+destino arbitrário nem listagem remota de todos os USB. A Central consulta a
+identidade antes e depois de importar e confere BUSID/VID/PID na resposta USB/IP;
+com isso, não encaminha a resposta de outro dispositivo ao cliente. Na sequência,
+os pacotes são opacos, com blocos até 64 KiB e pressão de fluxo. Não são gravados,
+interpretados como códigos, enfileirados em disco ou repetidos após falha.
 
-1. Compartilhar somente o leitor explicitamente selecionado. Não compartilhar hub, todos os dispositivos USB ou o teclado/mouse do supervisor por seleção genérica.
-2. O backend da Central só concede a sessão USB ao PDV cadastrado pertencente ao atendimento ativo do supervisor. O cliente não escolhe arbitrariamente outro servidor/dispositivo. O componente precisa permitir que a Central controle a associação, sem conexões permanentes por fora do atendimento.
-3. Usar autenticação entre os computadores e criptografia na LAN. Cadastro/TLS da aplicação não protegem automaticamente um transporte USB paralelo. Portas, certificado e credenciais do componente devem ser configurados e protegidos explicitamente, sem serviço de nuvem.
-4. Prever uso exclusivo do leitor: enquanto associado ao PDV, ele pode parar de produzir leituras locais na Central. O teclado e o mouse normais da Central continuam no caminho atual de controle.
-5. Ao encerrar, alternar PDV, desconectar, perder o dono do atendimento ou expirar a concessão, liberar o dispositivo. Exigir do componente suporte a encerramento e recuperação; uma simples chamada de anexar USB sem reversão não é suficiente.
-6. Não armazenar pacotes USB, conteúdo do cartão ou credenciais. Registrar somente metadados de acesso necessários e o resultado. A auditoria individual e a autenticação do supervisor ainda precisam ser alinhadas com a entrada direta atualmente configurada na Central.
-7. Preservar o mecanismo de teclado/mouse que já funciona. Não usar esse mecanismo como fallback silencioso anunciando USB ativo. Se o dispositivo não foi anexado, a interface deve informar indisponibilidade.
+O Agent inicia `usbip.exe` apontando para uma porta **loopback efêmera**, aceita
+uma conexão local, valida o preâmbulo e encaminha os bytes pelo túnel. Não oferece
+listener USB na LAN. Só informa conectado quando o transporte foi importado e o
+Windows reportou um novo dispositivo PnP correspondente sem erro. Isso não é
+comprovação de compatibilidade VR. Saídas/diagnósticos do componente são descartados,
+sem logs de URB, cartões, senhas ou hashes de leituras.
 
-## Critérios para selecionar o componente
+Trocar destino fecha a concessão anterior e aguarda o serviço USB informar que o
+cliente anterior foi liberado. Não reconecta USB automaticamente nem muda PDV.
+Encerrar atendimento, perder dashboard/Agent/túnel, expirar sessão, retirar leitor
+ou falhar a verificação de firewall revoga a concessão. Reiniciar os processos
+restaura o pareamento e seleção, mas **não** a conexão USB anterior. Buffers são
+apenas da sessão viva; comportamento de buffers do driver/dispositivo depende de
+validação física. Nenhuma configuração da autorização VR é modificada.
 
-- Driver de servidor para o Windows da Central e driver cliente para Windows 7 SP1 na arquitetura real do caixa; confirmar também os demais Windows atendidos.
-- Assinatura confiável, requisitos de atualizações SHA-2 do Windows 7, procedimento de instalação/desinstalação e recuperação após reinício documentados pelo fornecedor.
-- Suporte a leitores USB HID e ao modo em que o LS2208 está configurado, sem alterar silenciosamente essa configuração.
-- Integração documentada por SDK/CLI, licença permitindo uso/distribuição, controle de associação por dispositivo e ausência de dependência de internet em operação.
-- Transporte protegido e forma de restringir o acesso aos PDVs e atendimentos autorizados.
-- Compatibilidade com a VR confirmada por teste ou orientação do fornecedor; não falsificar VID/PID ou a identidade de outro dispositivo para contornar validação.
+A porta 3240 não pode ser exposta na LAN/internet. `WindowsHost.secure` verifica a
+regra efetiva de bloqueio e os perfis do Firewall antes e durante uma concessão.
+Não criar redirecionamento de portas no roteador nem desabilitar o Firewall.
+GPO/antivírus/firewall de terceiros podem exigir validação adicional local.
 
-## Arquivos previstos depois da seleção
+## Compilar os aplicativos
 
-O SDK/CLI e o modelo de segurança determinarão as alterações. Os pontos do projeto são `smartpdv/central.py` (dono/concessão do atendimento), `smartpdv/web/` (estado do leitor), integração Windows da Central e do Agent/`legacy-agent/`, e instaladores/rotinas de recuperação. O driver e seu componente local constituem uma dependência real; não substituí-los por um campo de EAN ou por simulação de teclas.
+Na Central, usar o build existente em Windows com Python 3.12, PyInstaller e Inno
+Setup conforme README do projeto. As dependências Python/lockfiles não mudaram.
 
-## Aceitação com o equipamento real
+Agent Win7 em computador de build Windows com MSBuild/referências .NET 4.8:
 
-Validar o dispositivo anexado no PDV, leitura de produto e cartão fiscal válido na mesma tela, rejeição normal de cartão não autorizado pela VR, devolução à Central, alternância entre dois PDVs, encerramento forçado, queda da LAN, reinício da Central/Agent e restauração da configuração anterior. Fazer os testes em janela supervisionada sem capturar o número do cartão. Até esses testes, não afirmar correção fiscal nem equivalência com outros aplicativos de acesso remoto.
+```powershell
+.\scripts\usb\build-agent.ps1 -MSBuild 'CAMINHO_REAL\MSBuild.exe' -InnoSetup 'CAMINHO_REAL\ISCC.exe'
+```
 
-## Alternativas para entrada semelhante à local, mantendo cartão
+O Inno Setup precisa ser a versão compatível com Windows 7 usada no CI (6.2.2).
+`-InnoSetup` é opcional se desejar apenas o executável. O build também produz um
+probe de transporte sem desktop/driver. O Agent pode ser compilado x86 e receber
+um driver nativo x86 ou x64 conforme o SO. **Não confundir o EXE do Agent com o
+controlador virtual SYS/CAT.** O instalador do Agent não inclui o driver USB.
 
-O usuário reiterou que a autorização deve continuar exclusivamente por cartão e pediu outra forma de a leitura funcionar como local. Nenhuma mudança para senha foi feita no Smart Control nem na VR.
+## Preparar a Central
 
-### Driver de entrada Interception
+1. Instalar o serviço oficial `usbipd-win`, conferindo sua assinatura e licença.
+2. Conectar o LS2208 e abrir o painel atualizado. Clicar **Listar dispositivos USB**.
+   Os demais dispositivos aparecem na lista, mas somente candidatos Symbol/Motorola
+   podem ser selecionados. O VID 05E0 sozinho não comprova que o modelo é LS2208.
+3. Identificar pela etiqueta física e pelo PnP InstanceId exato. Não escolher outro
+   teclado, hub ou dispositivo por aproximação. Informar esse ID ao preparo abaixo.
+4. Em PowerShell administrador, usando os **IPs reais fixos/reservados** dos PDVs:
 
-O [README oficial do Interception](https://github.com/oblitum/Interception/blob/master/README.md) informa testes entre Windows XP e Windows 10 e distingue uso não comercial de uso comercial. Para uso comercial, descreve licenças comerciais específicas. Portanto, a distribuição pública não foi selecionada como solução gratuita para o supermercado. Sua API é de interceptação/envio de entrada e não constitui, por si só, redirecionamento USB do LS2208. Nenhum driver foi instalado ou incorporado.
+```powershell
+.\scripts\usb\central.ps1 -ReaderInstanceId 'IDENTIDADE_PNP_REAL' -PdvAddresses '192.168.1.21','192.168.1.22' -CentralPort 8443
+```
 
-### Adaptador físico USB/HID por PDV
+O script bloqueia TCP 3240 de entrada em todos os perfis e permite somente os IPs
+informados na porta TLS, perfis Privado/Domínio. Faz `bind` apenas do dispositivo
+exato. Regras anteriores de outros aplicativos não são apagadas. Se existirem
+regras amplas para a porta da Central, revisá-las com o administrador: uma nova
+regra restrita não estreita regras antigas. O script não altera perfis de rede.
 
-Uma alternativa técnica é um módulo com USB nativo, por exemplo ESP32-S3 com conector USB-OTG acessível, ligado fisicamente ao PDV. Ele recebe eventos autorizados pela LAN e produz relatórios de teclado USB HID. O Windows usa a pilha HID/teclado do próprio sistema. Isso fornece um novo dispositivo de teclado USB físico; não transporta a interface USB completa do LS2208 nem reproduz sua identidade de fabricante. A aceitação pela tela fiscal da VR continua dependendo de teste real, especialmente se ela exigir uma coleção HID específica, identidade do leitor ou protocolo serial.
+O `bind` persiste após reinício; a **conexão** não. Ao desconectar no aplicativo,
+o host deixa de enviar o leitor ao PDV e ele pode voltar ao uso local, mesmo
+continuando preparado/compartilhado no serviço. Remover compartilhamento é uma
+operação administrativa separada.
 
-O [exemplo oficial ESP-IDF TinyUSB HID](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb/device/tusb_hid) demonstra dispositivo teclado/mouse USB em ESP32-S2/S3 e outros alvos com USB-OTG. A [arquitetura HID documentada pela Microsoft](https://github.com/MicrosoftDocs/windows-driver-docs/blob/staging/windows-driver-docs-pr/hid/hid-architecture.md) descreve a pilha de drivers fornecida pelo Windows e as coleções teclado/keypad. Essas fontes sustentam a arquitetura, não uma homologação de cartão fiscal VR.
+## Preparar cada PDV — bloqueado até existir pacote assinado
 
-O firmware pode ser desenvolvido sem licença comercial paga, mas o módulo e o cabo têm custo de compra. Foi solicitado ao usuário esclarecer se pode haver hardware adicional ou se a solução precisa usar somente os equipamentos existentes. Não houve compra nem recomendação de um modelo fechado sem confirmar conexão USB nativa e rede. Um ESP32 sem USB-OTG ou um conector ligado apenas a conversor serial não atende ao papel de dispositivo HID descrito aqui.
+Não executar as etapas de instalação abaixo com saída não assinada do build.
+Elas são instruções implementadas para o pacote futuro legitimamente assinado,
+ainda não disponível nesta entrega.
 
-Fluxo proposto: leitor da Central → sessão autorizada no Smart Control → LAN autenticada/criptografada → módulo associado exclusivamente ao PDV atendido → relatórios USB HID → validação normal do cartão pela VR. A rede pode ser Wi-Fi na mesma LAN ou Ethernet com módulo apropriado; não presumir que exista Wi-Fi no caixa. É necessário preservar a cadência observável, os controles/prefixos/terminadores suportados e impedir duplicação entre o envio normal de teclado e esse caminho.
+1. Instalar/atualizar Agent Win7 0.2.0; manter o pareamento existente. Para novo PDV,
+   usar **Cadastrar PDV** no Menu Iniciar da Central, transferir JSON por meio seguro
+   e importar pelo assistente do Agent. Remover cópias do JSON depois. Token fica em
+   DPAPI do usuário e pasta com ACL. Reemitir pareamento revoga a credencial antiga.
+2. Obter pacote assinado e revisado do cliente contendo `usbip.exe`, `usb.ids`,
+   `usbip_vhci.inf/.sys/.cat`, `LICENSE`. O hash esperado do EXE deve vir do build
+   revisado; não aceitar hash fornecido junto a um binário desconhecido como prova.
+3. Executar no PDV como administrador, com SignTool e DevCon oficiais compatíveis instalados:
 
-A integração deve limitar-se ao atendimento ativo, limpar estados de teclas ao encerrar/perder conexão, descartar dados pendentes ao reconectar e impedir reapresentação automática do cartão. As leituras ficam apenas em trânsito/memória, sem conteúdo ou hash nos logs. O módulo deve ter identidade de dispositivo própria, sem clonar VID/PID do LS2208. Não há protótipo de firmware ou integração funcional entregue nesta etapa.
+```powershell
+.\scripts\usb\install-pdv.ps1 -Package 'C:\pacote-assinado' -SignTool 'CAMINHO_REAL\signtool.exe' -DevCon 'CAMINHO_REAL\devcon.exe' -ExpectedExeSha256 'SHA256_DO_EXE_REVISADO'
+```
 
-### Alternativa somente por software: cadência
+O helper exige assinatura kernel e pertencimento SYS/INF ao CAT, confere hash do
+EXE, usa DevCon Microsoft com o hardware ID exato `root\usbip_vhci` e protege `%ProgramData%\SmartPDV-USB\Client` para gravação por Administradores
+ou SYSTEM, leitura/execução pelos usuários. Não substitui controlador USB/IP já
+existente e não habilita componente se a instalação não for confirmada.
+O DevCon deve corresponder à arquitetura do SO. O instalador legado upstream
+   contém caminho de instalação hardcoded para amd64; o helper usa DevCon em vez
+   desse caminho para também preparar x86. Reverificar arquitetura, cadeia e atualizações de confiança no Windows 7 real.
+Falhas não habilitam testes de assinatura nem ignoram verificações.
+4. Reiniciar o Agent. A capacidade USB só é anunciada com aprovação instalada e hash
+   correspondente. Não executar duas instâncias/versões do Agent no mesmo caixa.
+   O início automático existente ocorre **ao entrar no usuário**, não antes do login.
+   Serviço PDV independente antes do login não foi implementado nesta versão.
 
-O caminho individual do Agent impõe 20 ms mínimos por tecla. A Central 1.0.10 e o Agent Win7 0.1.7 acrescentaram rajadas numéricas qualificadas com intervalos preservados, sem esse mínimo nesse caminho. A hipótese era compatibilidade com telas que distinguem scanner por velocidade; não transforma a entrada em USB físico. O usuário informou que a leitura fiscal continuou falhando no teste da atualização atual. A versão inicial também falhava; os 20 ms não podem ser declarados causa única. Veja o [resultado e a informação técnica necessária](leitura-fiscal-pendente.md). Não repetir a tentativa como correção comprovada nem dizer que a Central 1.0.11 introduziu outro método: ela acrescentou recuperação do JSON.
+## Operação após preparar os componentes
 
-## Equipamentos atuais e tentativa de cadência
+1. Na Central, atualizar lista e **Selecionar LS2208**. Confirmar fisicamente o modelo
+   e a identidade. A seleção é persistida em `usb-reader.json`, separado dos PDVs.
+2. Abrir o card do PDV de destino. O atendimento deve pertencer à mesma aba.
+3. Clicar **Conectar leitor ao PDV**. Aceitar o aviso de indisponibilidade local.
+   A interface mostra disponível, conectando, conectado, desconectado ou erro a
+   partir da enumeração, concessão, importação e confirmação PnP reais.
+4. Para trocar, encerrar/alternar atendimento para o outro PDV e clicar conectar.
+   O backend também fecha/aguarda a conexão antiga antes de conceder a nova.
+5. **Desconectar leitor** ou encerrar atendimento. Após queda/reinício/retirada,
+   corrigir o problema e solicitar uma nova conexão explicitamente. Leituras não
+   são reapresentadas pelo aplicativo.
 
-O usuário confirmou que a solução deve usar **somente os computadores e leitores atuais**, sem adaptadores. Mantém Windows 7 e gratuidade. A ponte física permanece excluída.
+Conectar fica desabilitado se o Agent não anunciou o componente USB. Sem driver
+válido, não há conexão a testar no VR: os botões não simulam êxito.
 
-Foi identificada uma alteração artificial de cadência no teclado remoto; a tentativa de preservá-la está descrita em [teste-cadencia-leitor.md](teste-cadencia-leitor.md). Essa melhoria não implementa redirecionamento USB e não confirma o mecanismo de autorização fiscal da VR.
+## Desinstalação e reversão
+
+- Desconectar leitor e encerrar Agent antes da remoção. No PDV, com o DevCon
+  **oficial assinado Microsoft**, arquitetura correta, disponível no WDK:
+
+```powershell
+.\scripts\usb\remove-pdv.ps1 -DevCon 'CAMINHO_REAL\devcon.exe'
+```
+
+  O helper remove somente a identidade de controlador e INF registrados por esta
+  instalação; não remove driver arbitrário. Preserva binários/licença para inspeção
+  e informa a pasta para remoção manual. Nenhuma regra de firewall é criada no PDV.
+  Remover Agent por Programas e Recursos também remove o acesso remoto, portanto
+  é opcional; para preservar acesso remoto, remover apenas a aprovação/driver USB.
+- Na Central, com conexão encerrada, administrador:
+
+```powershell
+.\scripts\usb\central.ps1 -Action Remove -ReaderInstanceId 'IDENTIDADE_PNP_REAL'
+```
+
+  Faz unbind da identidade exata, usando GUID persistido quando disponível (inclusive leitor retirado). Só remove o bloqueio bruto se não houver outros USB
+  compartilhados; caso contrário mantém proteção e informa o impedimento. Remove
+  somente as regras `SmartPDV-USB-*` próprias. Desinstalar `usbipd-win` por Aplicativos
+  quando não houver outro uso; seu desinstalador remove os componentes do fornecedor.
+  Não apagar certificados/pareamentos existentes do Smart Controle.
+
+## Verificação realizada e aceitação pendente
+
+Ver [relatório de execução](usb-validation-report.md). O endpoint de teste TCP
+confere framing e transporte; não emula LS2208, driver kernel nem o VR. Não foram
+solicitados novos testes de digitação ou Bloco de Notas.
+
+Após resolver o driver e instalar em laboratório físico: verificar dispositivo no
+Gerenciador de Dispositivos do PDV, concluir autorização com cartão fiscal válido
+na tela atual do VR e confirmar rejeição normal de cartão não autorizado; testar
+uso exclusivo, devolução à Central, dois destinos, queda de rede, retirada, reinício
+e limpeza de dispositivo virtual. Não registrar os códigos dos cartões. Nenhuma
+mudança de senha ou contorno das regras do VR é necessário/autorizado.

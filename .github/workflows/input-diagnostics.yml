@@ -26,7 +26,7 @@ jobs:
         working-directory: legacy-agent
         shell: pwsh
         run: |
-          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /main:SmartPDV.Legacy.KeyboardProbe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll ScanKeyboard.cs Agent.cs KeyboardProbe.cs 2>&1 | Tee-Object control-compile.log
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /main:SmartPDV.Legacy.KeyboardProbe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Management.dll ScanKeyboard.cs TimedKeys.cs Agent.cs UsbReader.cs KeyboardProbe.cs 2>&1 | Tee-Object control-compile.log
           if ($LASTEXITCODE -ne 0) { throw 'Native control compilation failed' }
           & ./KeyboardProbe.exe 2>&1 | Tee-Object control-probe.log
           if ($LASTEXITCODE -ne 0) {
@@ -38,7 +38,7 @@ jobs:
         working-directory: diagnostics
         shell: pwsh
         run: |
-          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:DiagnosticsTests.exe /main:SmartPDV.Diagnostics.Tests /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll CaptureEnvironment.cs Summary.cs NativeCapture.cs Program.cs Tests.cs 2>&1 | Tee-Object compile-tests.log
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:DiagnosticsTests.exe /main:SmartPDV.Diagnostics.Tests /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Management.dll CaptureEnvironment.cs Summary.cs NativeCapture.cs Program.cs Tests.cs 2>&1 | Tee-Object compile-tests.log
           if ($LASTEXITCODE -ne 0) {
             $details = (Get-Content compile-tests.log | Select-Object -Last 15) -join '%0A'
             Write-Host "::error::$details"

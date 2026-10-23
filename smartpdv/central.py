@@ -15,6 +15,7 @@ from aiohttp import web, WSMsgType
 from .security import token_hash
 from .storage import load_json, atomic_json
 from .timed_keys import valid_sequence
+from .usb import Bridge, USBError
 
 
 def now():
@@ -30,18 +31,19 @@ class Central:
             saved = {}
         self.config['peripherals'] = {key:saved.get(key, True) if type(saved.get(key, True)) is bool else True for key in ('keyboard','mouse')}
         self.agents = {}
+        self.usb = Bridge(self)
         self.log_lock = threading.Lock()
         self.viewers = {}
         self.sessions = {}
         self.locks = {p['number']: asyncio.Lock() for p in self.config['pdvs']}
         self.state = {p['number']: dict(number=p['number'], online=False, pending=False,
                       active=False, thumbnail=None, connected_at=None, requested_at=None,
-                      supervisor=None, attended_at=None, owner=None, agent_version=None, keyboard_protocol=None, timed_keys=False) for p in self.config['pdvs']}
+                      supervisor=None, attended_at=None, owner=None, agent_version=None, keyboard_protocol=None, timed_keys=False, usb_capable=False) for p in self.config['pdvs']}
         self.app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[self.errors])
         self.app.add_routes([web.get('/', self.index), web.get('/app.js', self.asset),
                             web.get('/timed-keys.js', self.asset),
                             web.get('/style.css', self.asset), web.get('/session', self.session_info), web.get('/dashboard', self.dashboard),
-                            web.get('/agent', self.agent), web.get('/health', self.health)])
+                            web.get('/usb-stream', self.usb_stream), web.get('/agent', self.agent), web.get('/health', self.health)])
         self.app.on_startup.append(self.start)
         self.app.on_shutdown.append(self.shutdown)
         self.app.on_cleanup.append(self.cleanup)
@@ -113,7 +115,7 @@ class Central:
 
     async def publish(self):
         public = [{k: v for k, v in s.items() if k != 'owner'} for s in self.state.values()]
-        data = {'type': 'state', 'pdvs': public, 'alarm': self.config['alarm'], 'dashboard': self.config['dashboard'], 'peripherals':self.config['peripherals']}
+        data = {'type': 'state', 'pdvs': public, 'alarm': self.config['alarm'], 'dashboard': self.config['dashboard'], 'peripherals':self.config['peripherals'], 'usb':self.usb.public()}
         await self.broadcast(data)
 
     async def broadcast(self, data):
@@ -148,6 +150,14 @@ class Central:
                     data = json.loads(msg.data)
                     if not isinstance(data,dict):
                         raise ValueError('Comando inválido')
+                    if data.get('type') == 'usb':
+                        if not session['control']:
+                            raise ValueError('Sem permissão')
+                        try:
+                            await self.usb.action(data,id(ws))
+                        except USBError as exc:
+                            await ws.send_json({'type':'error','message':str(exc)})
+                        continue
                     if data.get('type') == 'peripherals':
                         settings = self.valid_peripherals(data.get('settings'))
                         if not session['control'] or settings is None:
@@ -236,6 +246,7 @@ class Central:
                 and isinstance(code,str) and len(code) <= 32 and (not code or code.isascii() and code.isalnum()))
 
     async def end(self, s, result):
+        await self.usb.release(number=s['number'])
         if not s['active']:
             return
         if s['requested_at']:
@@ -244,7 +255,10 @@ class Central:
                        'result': result if result in {'Concluído','Liberado','Cancelado','Alternância de PDV','Supervisor desconectado','PDV desconectado'} else 'Concluído'})
         agent = self.agents.get(s['number'])
         if agent and not agent.closed:
-            await agent.send_json({'type': 'session', 'active': False})
+            try:
+                await agent.send_json({'type': 'session', 'active': False})
+            except ConnectionError:
+                pass
         s.update(active=False, owner=None, supervisor=None, attended_at=None)
         if not s['pending']:
             s['requested_at'] = None
@@ -277,13 +291,21 @@ class Central:
             except ValueError:
                 continue
 
-    async def agent(self, request):
+    async def usb_stream(self, request):
+        pdv = self.authenticate_agent(request)
+        return await self.usb.stream(request,pdv['number'])
+
+    def authenticate_agent(self, request):
         identifier = request.headers.get('X-Computer-ID')
         digest = token_hash(request.headers.get('Authorization', '').removeprefix('Bearer '))
         pdv = next((p for p in self.config['pdvs'] if p['computer_id'] == identifier
                     and secrets.compare_digest(p['token_hash'], digest)), None)
         if not pdv:
             raise web.HTTPUnauthorized()
+        return pdv
+
+    async def agent(self, request):
+        pdv = self.authenticate_agent(request)
         number = pdv['number']
         if number in self.agents:
             raise web.HTTPConflict(text='PDV já conectado')
@@ -295,6 +317,7 @@ class Central:
         version = version if re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}',version) else None
         protocol = request.headers.get('X-SmartPDV-Keyboard')
         s.update(online=True, connected_at=now(), agent_version=version,
+                 usb_capable=request.headers.get('X-SmartPDV-USB') == 'usbip-win7-v1',
                  timed_keys=request.headers.get('X-SmartPDV-Timed-Keys') == 'numeric-v1',
                  keyboard_protocol=protocol if protocol=='scan-code-v1' else None)
         await self.publish()
@@ -304,7 +327,9 @@ class Central:
                 if msg.type != WSMsgType.TEXT:
                     continue
                 data = json.loads(msg.data)
-                if data['type'] == 'request' and not s['pending']:
+                if data['type'] == 'usb_status':
+                    await self.usb.report(number,data)
+                elif data['type'] == 'request' and not s['pending']:
                     s.update(pending=True, requested_at=now())
                     await self.publish()
                 elif data['type'] == 'input_status' and s['active']:
@@ -332,12 +357,13 @@ class Central:
             self.agents.pop(number, None)
             async with self.locks[number]:
                 await self.end(s, 'PDV desconectado')
-                s.update(online=False, active=False, thumbnail=None, connected_at=None, agent_version=None, keyboard_protocol=None, timed_keys=False)
+                s.update(online=False, active=False, thumbnail=None, connected_at=None, agent_version=None, keyboard_protocol=None, timed_keys=False, usb_capable=False)
             await self.publish()
         return ws
 
     async def start(self, app):
         self.reaper = asyncio.create_task(self.expire())
+        self.usb_watcher = asyncio.create_task(self.usb.watch())
 
     async def expire(self):
         while True:
@@ -345,8 +371,12 @@ class Central:
             self.sessions = {k:v for k,v in self.sessions.items() if v['expires'] > time.monotonic()}
 
     async def shutdown(self, app):
+        async with self.usb.lock:
+            await self.usb.stop()
         await asyncio.gather(*(ws.close() for ws in (*self.viewers, *self.agents.values())), return_exceptions=True)
 
     async def cleanup(self, app):
+        self.usb_watcher.cancel()
+        await asyncio.gather(self.usb_watcher,return_exceptions=True)
         self.reaper.cancel()
         await asyncio.gather(self.reaper, return_exceptions=True)

@@ -29,13 +29,13 @@ jobs:
             throw 'Compilation failed'
           }
           $agentVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path 'legacy-agent/bin/Release/SmartPDV-Agent-Win7.exe')).FileVersion
-          if ($agentVersion -ne '0.1.7.0') { throw "Unexpected Agent file version: $agentVersion" }
+          if ($agentVersion -ne '0.2.0.0') { throw "Unexpected Agent file version: $agentVersion" }
       - name: Verify native scan code keyboard input
         working-directory: legacy-agent
         shell: pwsh
         run: |
           try {
-            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /main:SmartPDV.Legacy.KeyboardProbe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll ScanKeyboard.cs TimedKeys.cs Agent.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
+            & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:KeyboardProbe.exe /main:SmartPDV.Legacy.KeyboardProbe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Management.dll ScanKeyboard.cs TimedKeys.cs Agent.cs UsbReader.cs KeyboardProbe.cs 2>&1 | Tee-Object keyboard-compile.log
             if ($LASTEXITCODE -ne 0) {
               $details = (Get-Content keyboard-compile.log | Select-Object -Last 12) -join '%0A'
               Write-Host "::error::$details"
@@ -53,6 +53,13 @@ jobs:
           }
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
+      - name: Test USB binary transport with managed Windows 7 client
+        shell: pwsh
+        run: |
+          & "$env:WINDIR/Microsoft.NET/Framework/v4.0.30319/csc.exe" /nologo /platform:x86 /out:legacy-agent/bin/Release/UsbTransportProbe.exe /main:SmartPDV.Legacy.UsbTransportProbe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Management.dll legacy-agent/Agent.cs legacy-agent/UsbReader.cs legacy-agent/ScanKeyboard.cs legacy-agent/TimedKeys.cs tests/UsbTransportProbe.cs
+          if ($LASTEXITCODE -ne 0) { throw 'USB probe compilation failed' }
+          python tests/usb_legacy_transport.py legacy-agent/bin/Release/UsbTransportProbe.exe
+          if ($LASTEXITCODE -ne 0) { throw 'USB binary TLS interoperability failed' }
       - name: Test real TLS and WebSocket interoperability
         shell: pwsh
         env:
@@ -116,7 +123,7 @@ jobs:
           $notes = Join-Path $env:RUNNER_TEMP 'win7-notes.md'
           @'
           Agent separado para Windows 7 SP1 (32 ou 64 bits), exige .NET Framework 4.8 instalado.
-          Atualizacao 0.1.7: recebe rajadas numericas temporizadas da Central 1.0.10, preservando intervalos observados sem a pressao minima artificial de 20 ms nesse caminho. Preserva o teclado comum, pareamento e configuracao. Continua sendo SendInput, sem driver USB e sem homologacao do cartao fiscal VRPDV.
+          Agent 0.2.0: adiciona componente de transporte USB/IP binario via TLS com pareamento existente, mantendo controle remoto. Exige driver cliente Windows 7 assinado e instalado separadamente. O pacote do Agent nao inclui nem habilita esse driver; LS2208 e VR permanecem sem homologacao fisica. Consulte docs/usb-reader-redirection.md.
           Captura de tela, F11 e controle mouse/teclado nativos. Inicializacao discreta apos login do Windows.
           Pareamento com a Central pela LAN, TLS 1.2 e credencial protegida por DPAPI. Sem banco, login de aplicativo ou nuvem.
           Testes automatizados do executavel e instalador feitos em Windows moderno contra a Central real.

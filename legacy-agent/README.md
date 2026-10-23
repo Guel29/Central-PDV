@@ -44,3 +44,12 @@ Informa a versao do Agent conectado para a Central 1.0.8, junto do identificador
 ### Atualizacao 0.1.7
 
 Com a Central 1.0.10, recebe rajadas numericas curtas com intervalos observados, sem o minimo artificial de 20 ms nesse caminho. Preserva teclado comum e pareamento; nao e USB/HID nem correcao homologada do cartao fiscal. Veja [procedimento e limites](../docs/teste-cadencia-leitor.md). Encerre a instancia antiga antes de atualizar e confira Agent conectado 0.1.7 no card.
+
+### Atualização 0.2.0 — ponte USB em desenvolvimento
+
+Adiciona receptor binário USB/IP por TLS separado do teclado remoto. Exige pacote
+cliente/driver Windows 7 assinado e instalado separadamente; não vem habilitado pelo
+instalador do Agent. Não há driver pronto nem homologação LS2208/VR nesta entrega.
+Leia [componentes, instalação condicionada e operação](../docs/usb-reader-redirection.md).
+O Agent continua iniciando no login do operador. Pareamento e controle remoto são
+preservados. Não executar um Agent antigo junto com a nova versão.
